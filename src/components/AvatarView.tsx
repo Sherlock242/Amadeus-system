@@ -140,9 +140,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [activeChunk.tag, isGlitching, isLoading]);
 
   // High-frequency mouth update loop linked to real-time audio progress
+  // Optimized for 24fps (approx. 42ms interval)
   useEffect(() => {
     const now = Date.now();
-    if (now - lastMouthUpdate.current < 16) return; // ~60fps sync limit
+    if (now - lastMouthUpdate.current < 42) return; 
 
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
       setFrameIndex(0);
