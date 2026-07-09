@@ -138,7 +138,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [displayedText]);
+  }, [displayedText, isLoading]);
 
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
@@ -255,7 +255,16 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                   className="max-h-[50vh] overflow-y-auto scrollbar-thin-amber space-y-6"
                 >
                   {isLoading ? (
-                    <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic animate-pulse">...</p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xl lg:text-2xl text-amber-50/70 font-sans leading-relaxed tracking-wide italic animate-pulse">
+                        Synchronizing neural matrix...
+                      </p>
+                      <div className="flex gap-1.5 ml-1">
+                        <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                        <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                        <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                      </div>
+                    </div>
                   ) : (
                     paragraphs.map((para, idx) => (
                       <p key={idx} className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
