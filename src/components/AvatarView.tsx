@@ -31,7 +31,7 @@ const normalizeTag = (raw: string): string =>
 
 /**
  * Maps a character to a mouth frame index.
- * 0 = Closed
+ * 0 = Closed (Used for spaces and punctuation)
  * 1 = Half-Open
  * 2 = Full-Open
  */
@@ -39,16 +39,17 @@ const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
+  // Punctuation and spaces produce a closed mouth
+  if (" .,!?;:()[]_-\n\t".includes(c)) return 0;
+  
   // Vowels produce significant mouth opening
   if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
   
   // Consonants produce partial opening
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
   
-  // Stops, punctuation, and spaces produce closed mouth
-  if ("mpbf .,!?()[]_-".includes(c)) return 0;
-  
-  return 1;
+  // Default closed for unknowns
+  return 0;
 };
 
 interface Chunk { tag: string; text: string; }
@@ -108,7 +109,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Synchronize typewriter text and character pointer with audio playback progress
+  // Synchronize typewriter text with audio playback progress
   const { displayedText, activeChunk, visibleCharsIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0 };
@@ -139,28 +140,28 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
-  // High-frequency mouth update loop linked to real-time audio progress
-  // Optimized for 24fps (approx. 42ms interval)
+  // Cinematic 24fps mouth update loop linked to real-time audio progress
+  // Target interval: 1000ms / 24 = ~41.6ms
   useEffect(() => {
     const now = Date.now();
-    if (now - lastMouthUpdate.current < 42) return; 
+    if (now - lastMouthUpdate.current < 41) return; 
 
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
-      setFrameIndex(0);
+      setFrameIndex(0); // Mouth closed when not speaking
       return;
     }
 
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     if (frames.length <= 1) return;
 
-    // Determine shouting intensity for specific emotional states
+    // Check the current character being spoken to decide mouth frame
+    const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching', 'sided_angry'].some(w => avatarState.includes(w));
     
-    // Pick frame based on the current character being spoken
-    const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
+    // getMouthFrame returns 0 for spaces/punctuation, 1 or 2 for speech
     const targetFrame = getMouthFrame(currentChar, isShouting);
     
-    // Add minor variation for realism during sustained sounds
+    // Add minor variation during sustained speech for natural movement
     let finalFrame = targetFrame;
     if (targetFrame !== 0 && Math.random() > 0.8) {
       finalFrame = Math.max(0, targetFrame - 1);
