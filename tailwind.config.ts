@@ -58,11 +58,11 @@ export default {
         'shake': { '0%, 100%': { transform: 'translateX(0)' }, '25%': { transform: 'translateX(-5px)' }, '75%': { transform: 'translateX(5px)' } }
       },
       animation: {
-        'fade-in': 'fade-in 0.5s ease-out',
-        'slide-in-left': 'slide-in-left 0.5s ease-out',
-        'slide-in-right': 'slide-in-right 0.5s ease-out',
-        'slide-in-top': 'slide-in-top 0.5s ease-out',
-        'slide-in-bottom': 'slide-in-bottom 0.5s ease-out',
+        'fade-in': 'fade-in 0.5s ease-out forwards',
+        'slide-in-left': 'slide-in-left 0.5s ease-out forwards',
+        'slide-in-right': 'slide-in-right 0.5s ease-out forwards',
+        'slide-in-top': 'slide-in-top 0.5s ease-out forwards',
+        'slide-in-bottom': 'slide-in-bottom 0.5s ease-out forwards',
         'shake': 'shake 0.3s ease-in-out'
       },
     },

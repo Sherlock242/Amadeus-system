@@ -71,7 +71,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const lastMouthUpdate = useRef<number>(0);
   const hasPlayedRef = useRef(false);
 
-  // Preload frames to GPU cache
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); img.src = src; 
@@ -79,13 +78,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     const blinkImg = new Image(); blinkImg.src = '/images/kurisu_blink.png';
   }, []);
 
-  // Blinking logic (~15 times per minute)
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
       setIsBlinking(true);
       setTimeout(() => setIsBlinking(false), 150);
-      const nextDelay = 2000 + Math.random() * 4000; // Random delay between 2-6 seconds
+      const nextDelay = 2000 + Math.random() * 4000;
       blinkTimeout = setTimeout(triggerBlink, nextDelay);
     };
     blinkTimeout = setTimeout(triggerBlink, 3000);
@@ -136,7 +134,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
-  // 24fps mouth loop
   useEffect(() => {
     const now = Date.now();
     if (now - lastMouthUpdate.current < 41) return;
@@ -194,26 +191,27 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       </button>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none">
-        {/* Animated Container: Syncs both base image and blink overlay to the sway motion */}
-        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-10 w-full max-w-4xl will-change-transform transform-gpu animate-sway">
-          <div className="relative h-full flex items-end justify-center">
-            <img 
-              src={imgSrc} 
-              alt="Amadeus Avatar" 
-              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 transform-gpu"
-              onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
-            />
-            {isBlinking && (
+        <div className="absolute inset-0 flex items-end justify-center pointer-events-none z-10">
+          <div className="relative h-full flex items-end justify-center animate-sway will-change-transform transform-gpu w-full max-w-4xl">
+            <div className="relative h-full flex items-end justify-center">
               <img 
-                src="/images/kurisu_blink.png" 
-                alt="Blink" 
-                className="absolute bottom-0 h-[95%] w-auto object-contain transition-all duration-75"
+                src={imgSrc} 
+                alt="Amadeus Avatar" 
+                className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 transform-gpu"
+                onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
               />
-            )}
+              {isBlinking && (
+                <img 
+                  src="/images/kurisu_blink.png" 
+                  alt="Blink" 
+                  className="absolute bottom-0 h-[95%] w-auto object-contain transition-all duration-75"
+                />
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="absolute right-12 top-1/2 -translate-y-1/2 w-1/3 max-w-sm flex flex-col gap-3 z-20 pointer-events-auto">
+        <div className="absolute bottom-40 right-4 left-4 md:right-12 md:left-auto md:top-1/2 md:-translate-y-1/2 md:w-1/3 md:max-w-sm flex flex-col gap-3 z-20 pointer-events-auto">
           {(displayedText || isLoading) && (
             <div key={`${msgTimestamp}`} className="animate-slide-in-right">
               <div className="bg-black/60 backdrop-blur-2xl border-l-4 border-amber-500/80 p-8 rounded-r-2xl shadow-2xl">
