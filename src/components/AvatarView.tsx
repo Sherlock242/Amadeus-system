@@ -29,20 +29,12 @@ interface AvatarViewProps {
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '');
 
-/**
- * Logic to map character to mouth frame.
- * 0: Closed, 1: Mid, 2: Open
- */
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  
-  // STOP at punctuation and spaces
   if (" .,!?;:()[]_-\n\t".includes(c)) return 0;
-  
   if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
-  
   return 0;
 };
 
@@ -74,16 +66,30 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [frameIndex, setFrameIndex] = useState(0);
+  const [isBlinking, setIsBlinking] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
   const lastMouthUpdate = useRef<number>(0);
   const hasPlayedRef = useRef(false);
 
-  // 1. PERFORMANCE: Preload all 56 frames on mount to browser cache
+  // Preload frames to GPU cache
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
-      const img = new Image(); 
-      img.src = src; 
+      const img = new Image(); img.src = src; 
     });
+    const blinkImg = new Image(); blinkImg.src = '/images/kurisu_blink.png';
+  }, []);
+
+  // Blinking logic (~15 times per minute)
+  useEffect(() => {
+    let blinkTimeout: NodeJS.Timeout;
+    const triggerBlink = () => {
+      setIsBlinking(true);
+      setTimeout(() => setIsBlinking(false), 150);
+      const nextDelay = 2000 + Math.random() * 4000; // Random delay between 2-6 seconds
+      blinkTimeout = setTimeout(triggerBlink, nextDelay);
+    };
+    blinkTimeout = setTimeout(triggerBlink, 3000);
+    return () => clearTimeout(blinkTimeout);
   }, []);
 
   const lastAmadeusMsgObj = useMemo(() =>
@@ -130,19 +136,18 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
-  // 2. PERFORMANCE: Optimized 24fps mouth loop
+  // 24fps mouth loop
   useEffect(() => {
     const now = Date.now();
-    if (now - lastMouthUpdate.current < 41) return; // ~24fps limit (1000/24)
+    if (now - lastMouthUpdate.current < 41) return;
 
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
-      setFrameIndex(0);
-      return;
+      setFrameIndex(0); return;
     }
 
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
-    const isShouting = ['surprised', 'pissed', 'angry', 'glitching', 'sided_angry'].some(w => avatarState.includes(w));
+    const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
     const targetFrame = getMouthFrame(currentChar, isShouting);
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
@@ -157,8 +162,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [currentImage]);
 
   useEffect(() => { 
-    startListening(); 
-    return () => stopListening(); 
+    startListening(); return () => stopListening(); 
   }, [startListening, stopListening]);
 
   useEffect(() => {
@@ -168,25 +172,17 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim() && !isLoading) { 
-      onSendMessage(inputValue.trim()); 
-      setInputValue(''); 
+      onSendMessage(inputValue.trim()); setInputValue(''); 
     }
   };
 
   return (
     <div 
       className={`fixed inset-0 z-50 flex flex-col items-center justify-end overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}
-      style={{
-        backgroundImage: 'url(/images/background.jpeg)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      }}
+      style={{ backgroundImage: 'url(/images/background.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
     >
-      {/* 3. PERFORMANCE: Hidden buffer to force GPU/Browser decoding of current expression frames */}
       <div className="hidden pointer-events-none" aria-hidden="true">
-        {currentFrames.map((frame, i) => (
-          <img key={`${avatarState}-${i}`} src={frame} alt="" />
-        ))}
+        {currentFrames.map((frame, i) => <img key={`${avatarState}-${i}`} src={frame} alt="" />)}
       </div>
 
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.6)_100%)] pointer-events-none" />
@@ -198,17 +194,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       </button>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none">
-        {/* 4. PERFORMANCE: Added will-change-transform for GPU layer promotion */}
-        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-10 w-full max-w-4xl will-change-transform">
+        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-10 w-full max-w-4xl will-change-transform transform-gpu">
           <img 
             src={imgSrc} 
             alt="Amadeus Avatar" 
             className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 animate-sway transform-gpu"
-            onError={() => {
-              if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl);
-            }}
+            onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
           />
         </div>
+
+        {isBlinking && (
+          <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-20 w-full max-w-4xl will-change-transform transform-gpu">
+            <img 
+              src="/images/kurisu_blink.png" 
+              alt="Blink" 
+              className="h-[95%] w-auto object-contain transition-all duration-75 animate-sway"
+            />
+          </div>
+        )}
 
         <div className="absolute right-12 top-1/2 -translate-y-1/2 w-1/3 max-w-sm flex flex-col gap-3 z-20 pointer-events-auto">
           {(displayedText || isLoading) && (
@@ -221,12 +224,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                   }
                 </p>
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">
-                    {isLoading ? 'SYNCING' : isTtsSpeaking ? 'TRANSMITTING' : 'STABLE'}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag}</span>
-                  </div>
+                  <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'SYNCING' : 'STABLE'}</span>
+                  <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag}</span>
                 </div>
               </div>
             </div>

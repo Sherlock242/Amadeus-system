@@ -39,6 +39,7 @@ import {
 type EndingType = 'RED' | 'BLUE' | 'NORMAL' | null;
 
 export default function AmadeusApp() {
+  const [isClient, setIsClient] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [sessionApiKey, setSessionApiKey] = useState<string>('');
   const [sessionGroqKey, setSessionGroqKey] = useState<string>('');
@@ -97,6 +98,7 @@ export default function AmadeusApp() {
   });
 
   useEffect(() => {
+    setIsClient(true);
     if (typeof window !== 'undefined') {
       setSessionApiKey(localStorage.getItem('amadeus-gemini-key') || '');
       setSessionGroqKey(localStorage.getItem('amadeus-groq-key') || '');
@@ -400,6 +402,7 @@ export default function AmadeusApp() {
     return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
   }, [conversations, userProfile, activeEnding, amadeusState, callOverlay, playSound]);
 
+  if (!isClient) return <div className="h-screen w-screen bg-black" />;
   if (activeEnding) return <TerminationScreen type={activeEnding} />;
   if (showSplash) return <IntroScreen onComplete={() => setShowSplash(false)} onToggleAudio={(active) => { if (bgmAudioRef.current && active) setMusicSettings(prev => ({ ...prev, isPlaying: true })); }} />;
   if (!userProfile) return <AuthScreen onLoginSuccess={handleLoginSuccess} onInitializeStart={() => { if(bgmAudioRef.current) bgmAudioRef.current.pause(); }} />;
