@@ -194,24 +194,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       </button>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none">
-        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-10 w-full max-w-4xl will-change-transform transform-gpu">
-          <img 
-            src={imgSrc} 
-            alt="Amadeus Avatar" 
-            className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 animate-sway transform-gpu"
-            onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
-          />
-        </div>
-
-        {isBlinking && (
-          <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-20 w-full max-w-4xl will-change-transform transform-gpu">
+        {/* Animated Container: Syncs both base image and blink overlay to the sway motion */}
+        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-10 w-full max-w-4xl will-change-transform transform-gpu animate-sway">
+          <div className="relative h-full flex items-end justify-center">
             <img 
-              src="/images/kurisu_blink.png" 
-              alt="Blink" 
-              className="h-[95%] w-auto object-contain transition-all duration-75 animate-sway"
+              src={imgSrc} 
+              alt="Amadeus Avatar" 
+              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 transform-gpu"
+              onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
             />
+            {isBlinking && (
+              <img 
+                src="/images/kurisu_blink.png" 
+                alt="Blink" 
+                className="absolute bottom-0 h-[95%] w-auto object-contain transition-all duration-75"
+              />
+            )}
           </div>
-        )}
+        </div>
 
         <div className="absolute right-12 top-1/2 -translate-y-1/2 w-1/3 max-w-sm flex flex-col gap-3 z-20 pointer-events-auto">
           {(displayedText || isLoading) && (
