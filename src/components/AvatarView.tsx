@@ -82,16 +82,17 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     new Image().src = '/images/kurisu_side_blink.png';
   }, []);
 
-  // Organic Blinking logic (~15 blinks/min)
+  // Organic Blinking logic (~15 blinks/min -> avg every 4s)
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
       setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 120);
-      const nextDelay = 1500 + Math.random() * 4500;
+      setTimeout(() => setIsBlinking(false), 140); // Realistic blink duration
+      // Random interval between 2500ms and 5500ms for realistic variability (avg 4s = 15/min)
+      const nextDelay = 2500 + Math.random() * 3000;
       blinkTimeout = setTimeout(triggerBlink, nextDelay);
     };
-    blinkTimeout = setTimeout(triggerBlink, 3000);
+    blinkTimeout = setTimeout(triggerBlink, 2000);
     return () => clearTimeout(blinkTimeout);
   }, []);
 
@@ -139,13 +140,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [displayedText, isLoading]);
 
-  // Avatar state transitions: Normal -> Side (Thinking) -> Expression (Talking)
+  // Transition Logic: Front -> Side (Thinking) -> Front (Speaking)
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
-    // Switch to side profile only while waiting for LLM result
+    // Stay in side profile only while processing (isLoading)
     if (isLoading) return 'thinking';
+    // Return to front as soon as text/audio starts
     const tag = normalizeTag(activeChunk.tag);
-    // Switch to front (normal or response tag) as soon as text/audio starts
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
@@ -276,8 +277,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                   )}
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
-                  <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'SYNCING' : 'STABLE'}</span>
-                  <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag}</span>
+                  <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'THINKING' : 'STABLE'}</span>
+                  <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag || 'normal'}</span>
                 </div>
               </div>
             </div>
