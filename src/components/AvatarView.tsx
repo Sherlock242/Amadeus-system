@@ -30,25 +30,19 @@ const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '');
 
 /**
- * Maps a character to a mouth frame index.
- * 0 = Closed (Used for spaces and punctuation)
- * 1 = Half-Open
- * 2 = Full-Open
+ * Logic to map character to mouth frame.
+ * 0: Closed, 1: Mid, 2: Open
  */
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
-  // Punctuation and spaces produce a closed mouth
+  // STOP at punctuation and spaces
   if (" .,!?;:()[]_-\n\t".includes(c)) return 0;
   
-  // Vowels produce significant mouth opening
   if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
-  
-  // Consonants produce partial opening
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
   
-  // Default closed for unknowns
   return 0;
 };
 
@@ -84,7 +78,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const lastMouthUpdate = useRef<number>(0);
   const hasPlayedRef = useRef(false);
 
-  // Preload frames to prevent flickering during animation
+  // 1. PERFORMANCE: Preload all 56 frames on mount to browser cache
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); 
@@ -109,12 +103,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Synchronize typewriter text with audio playback progress
   const { displayedText, activeChunk, visibleCharsIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0 };
     }
-    
     const progress = Math.min(currentTime / duration, 1);
     const charCount = Math.floor(progress * fullCleanText.length);
     const textSoFar = fullCleanText.slice(0, charCount);
@@ -128,11 +120,9 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         break;
       }
     }
-    
     return { displayedText: textSoFar, activeChunk: selectedChunk, visibleCharsIndex: charCount };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
-  // Determine current emotional expression set
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
@@ -140,38 +130,25 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
-  // Cinematic 24fps mouth update loop linked to real-time audio progress
-  // Target interval: 1000ms / 24 = ~41.6ms
+  // 2. PERFORMANCE: Optimized 24fps mouth loop
   useEffect(() => {
     const now = Date.now();
-    if (now - lastMouthUpdate.current < 41) return; 
+    if (now - lastMouthUpdate.current < 41) return; // ~24fps limit (1000/24)
 
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
-      setFrameIndex(0); // Mouth closed when not speaking
+      setFrameIndex(0);
       return;
     }
 
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
-    if (frames.length <= 1) return;
-
-    // Check the current character being spoken to decide mouth frame
     const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching', 'sided_angry'].some(w => avatarState.includes(w));
     
-    // getMouthFrame returns 0 for spaces/punctuation, 1 or 2 for speech
     const targetFrame = getMouthFrame(currentChar, isShouting);
-    
-    // Add minor variation during sustained speech for natural movement
-    let finalFrame = targetFrame;
-    if (targetFrame !== 0 && Math.random() > 0.8) {
-      finalFrame = Math.max(0, targetFrame - 1);
-    }
-
-    setFrameIndex(Math.min(finalFrame, frames.length - 1));
+    setFrameIndex(Math.min(targetFrame, frames.length - 1));
     lastMouthUpdate.current = now;
   }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText]);
 
-  // Resolve final image source based on calculated state and frame
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
   const currentImage = currentFrames[frameIndex % currentFrames.length];
 
@@ -205,6 +182,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         backgroundPosition: 'center'
       }}
     >
+      {/* 3. PERFORMANCE: Hidden buffer to force GPU/Browser decoding of current expression frames */}
+      <div className="hidden pointer-events-none" aria-hidden="true">
+        {currentFrames.map((frame, i) => (
+          <img key={`${avatarState}-${i}`} src={frame} alt="" />
+        ))}
+      </div>
+
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.6)_100%)] pointer-events-none" />
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
@@ -214,11 +198,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       </button>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none">
-        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-10 w-full max-w-4xl">
+        {/* 4. PERFORMANCE: Added will-change-transform for GPU layer promotion */}
+        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 h-full flex items-end justify-center pointer-events-none z-10 w-full max-w-4xl will-change-transform">
           <img 
             src={imgSrc} 
             alt="Amadeus Avatar" 
-            className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 animate-sway"
+            className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 animate-sway transform-gpu"
             onError={() => {
               if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl);
             }}
