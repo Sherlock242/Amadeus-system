@@ -1,17 +1,17 @@
 /**
  * KURISU EXPRESSIONS — Asset Paths
  * All paths point to the root /images/ directory.
- * Mapping follows the available files in the public/images folder.
+ * Mapping follows the 3-frame sequence: [Closed, Half-Open, Fully Open]
  */
 
 const IMAGE_PATH = '/images/';
 
 export const kurisuExpressions: Record<string, string[]> = {
-  // ── Basic Emotions ──
+  // ── Basic Emotions (Front Facing) ──
   'normal':              [`${IMAGE_PATH}kurisu_normal1.png`,             `${IMAGE_PATH}kurisu_normal2.png`,             `${IMAGE_PATH}kurisu_normal3.png`],
   'happy':               [`${IMAGE_PATH}kurisu_happy1.png`,              `${IMAGE_PATH}kurisu_happy2.png`,              `${IMAGE_PATH}kurisu_happy3.png`],
   'sad':                 [`${IMAGE_PATH}kurisu_sad1.png`,                `${IMAGE_PATH}kurisu_sad2.png`,                `${IMAGE_PATH}kurisu_sad3.png`],
-  'angry':               [`${IMAGE_PATH}kurisu_angry1.png`,              `${IMAGE_PATH}kurisu_angry2.png`], // angry3 does not exist
+  'angry':               [`${IMAGE_PATH}kurisu_angry1.png`,              `${IMAGE_PATH}kurisu_angry2.png`], // Note: angry3 does not exist
   'annoyed':             [`${IMAGE_PATH}kurisu_annoyed1.png`,            `${IMAGE_PATH}kurisu_annoyed2.png`,            `${IMAGE_PATH}kurisu_annoyed3.png`],
   'blush':               [`${IMAGE_PATH}kurisu_blush1.png`,              `${IMAGE_PATH}kurisu_blush2.png`,              `${IMAGE_PATH}kurisu_blush3.png`],
   'disappointed':        [`${IMAGE_PATH}kurisu_disappointed1.png`,       `${IMAGE_PATH}kurisu_disappointed2.png`,       `${IMAGE_PATH}kurisu_disappointed3.png`],
@@ -20,7 +20,7 @@ export const kurisuExpressions: Record<string, string[]> = {
   'eyes_closed':         [`${IMAGE_PATH}kurisu_eyes_closed1.png`,        `${IMAGE_PATH}kurisu_eyes_closed2.png`,        `${IMAGE_PATH}kurisu_eyes_closed3.png`],
   'winking':             [`${IMAGE_PATH}kurisu_winking1.png`,            `${IMAGE_PATH}kurisu_winking2.png`,            `${IMAGE_PATH}kurisu_winking3.png`],
 
-  // ── Sided Perspectives ──
+  // ── Sided Perspectives (Profile) ──
   'side':                [`${IMAGE_PATH}kurisu_side1.png`,               `${IMAGE_PATH}kurisu_side2.png`,               `${IMAGE_PATH}kurisu_side3.png`],
   'sided_angry':         [`${IMAGE_PATH}kurisu_sided_angry1.png`,        `${IMAGE_PATH}kurisu_sided_angry2.png`,        `${IMAGE_PATH}kurisu_sided_angry3.png`],
   'sided_blush':         [`${IMAGE_PATH}kurisu_sided_blush1.png`,        `${IMAGE_PATH}kurisu_sided_blush2.png`,        `${IMAGE_PATH}kurisu_sided_blush3.png`],
