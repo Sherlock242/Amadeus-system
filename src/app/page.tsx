@@ -77,7 +77,6 @@ export default function AmadeusApp() {
   
   const soundAudioRef = useRef<HTMLAudioElement | null>(null);
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
-  const isInitialLoad = useRef(true);
   
   const { speak, cancel, voices, isSpeaking: isTtsSpeaking, progress: ttsProgress, currentTime, duration } = useTTS();
   const { isListening, transcript, startListening, stopListening, isSupported } = useSpeechRecognition();
@@ -192,7 +191,6 @@ export default function AmadeusApp() {
         setSessionOpenRouterKey(openRouterKey || '');
     }
     setUserProfile(profile);
-    isInitialLoad.current = false;
     if (!brain || brain.conversations.length === 0) {
       handleStartNewChat();
     } else {
