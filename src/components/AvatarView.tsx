@@ -29,15 +29,25 @@ interface AvatarViewProps {
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '');
 
+/**
+ * Maps a character to a mouth frame index.
+ * 0 = Closed
+ * 1 = Half-Open
+ * 2 = Full-Open
+ */
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  // Vowels = Full or Half Open
-  if ('aeouıiöü'.includes(c))        return isShouting ? 2 : 1;
-  // Consonants = Half Open
+  
+  // Vowels produce significant mouth opening
+  if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
+  
+  // Consonants produce partial opening
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
-  // Stops and Punctuation = Closed
+  
+  // Stops, punctuation, and spaces produce closed mouth
   if ("mpbf .,!?()[]_-".includes(c)) return 0;
+  
   return 1;
 };
 
@@ -51,27 +61,29 @@ const parseChunks = (message: string): Chunk[] => {
     .replace(/\[NEURAL:[\s\S]*?\]/g, '')
     .replace(/\[speed:[^\]]+\]/g, '')
     .trim();
+  
   const matches = Array.from(clean.matchAll(/\[([a-z_]+\d*)\]\s*([^[]+)/g));
   if (matches.length > 0) {
     return matches
       .map(m => ({ tag: normalizeTag(m[1]), text: m[2].trim() }))
       .filter(c => c.text.length > 0);
   }
+  
   const plain = clean.replace(/\[.*?\]/g, '').trim();
   return plain ? [{ tag: 'normal', text: plain }] : [];
 };
 
 const AvatarView: React.FC<AvatarViewProps> = ({
   messages, onSendMessage, isLoading, isSpeaking, isTtsSpeaking = false,
-  ttsProgress = 0, currentTime = 0, duration = 0, isGlitching, onExit, isListening, transcript, startListening, stopListening, playSound
+  currentTime = 0, duration = 0, isGlitching, onExit, isListening, transcript, startListening, stopListening, playSound
 }) => {
-  const [inputValue, setInputValue]       = useState('');
-  const [frameIndex, setFrameIndex]       = useState(0);
-  const [imgSrc, setImgSrc]               = useState<string>('/images/kurisu_normal1.png');
+  const [inputValue, setInputValue] = useState('');
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
   const lastMouthUpdate = useRef<number>(0);
   const hasPlayedRef = useRef(false);
 
-  // Preload all frames
+  // Preload frames to prevent flickering during animation
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); 
@@ -84,7 +96,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   , [messages]);
   
   const lastAmadeusMessage = lastAmadeusMsgObj?.text || '';
-  const msgTimestamp       = lastAmadeusMsgObj?.timestamp || 0;
+  const msgTimestamp = lastAmadeusMsgObj?.timestamp || 0;
   
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
@@ -96,29 +108,30 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Derive displayed text and current chunk based on real-time TTS progress
-  const { displayedText, activeChunk, visibleChars } = useMemo(() => {
-    if (isLoading || !fullCleanText || duration === 0) return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleChars: 0 };
+  // Synchronize typewriter text and character pointer with audio playback progress
+  const { displayedText, activeChunk, visibleCharsIndex } = useMemo(() => {
+    if (isLoading || !fullCleanText || duration === 0) {
+      return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0 };
+    }
     
-    // Real-time progress without delay
-    const progress = currentTime / duration;
-    
-    const count = Math.floor(progress * fullCleanText.length);
-    const textSoFar = fullCleanText.slice(0, count);
+    const progress = Math.min(currentTime / duration, 1);
+    const charCount = Math.floor(progress * fullCleanText.length);
+    const textSoFar = fullCleanText.slice(0, charCount);
     
     let currentLen = 0;
     let selectedChunk = chunks[0] || { tag: 'normal', text: '' };
     for (const chunk of chunks) {
       currentLen += chunk.text.length + 1;
-      if (count < currentLen) {
+      if (charCount < currentLen) {
         selectedChunk = chunk;
         break;
       }
     }
     
-    return { displayedText: textSoFar, activeChunk: selectedChunk, visibleChars: count };
+    return { displayedText: textSoFar, activeChunk: selectedChunk, visibleCharsIndex: charCount };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
+  // Determine current emotional expression set
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
@@ -126,50 +139,49 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
-  // Handle Lip-Syncing tied to voice pauses and character mapping
+  // High-frequency mouth update loop linked to real-time audio progress
   useEffect(() => {
     const now = Date.now();
-    // High-frequency synchronization
-    if (now - lastMouthUpdate.current < 8) return;
-    
-    const speaking = isTtsSpeaking && displayedText.length > 0;
-    
-    if (!speaking || isLoading) { 
-      setFrameIndex(0); 
-      return; 
+    if (now - lastMouthUpdate.current < 16) return; // ~60fps sync limit
+
+    if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
+      setFrameIndex(0);
+      return;
     }
 
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     if (frames.length <= 1) return;
 
-    // Correctly identify "shouting" intensity for glitching/pissed states
-    const isShouting = ['surprised','pissed','angry','glitching'].some(w => avatarState.includes(w));
+    // Determine shouting intensity for specific emotional states
+    const isShouting = ['surprised', 'pissed', 'angry', 'glitching', 'sided_angry'].some(w => avatarState.includes(w));
     
-    // Determine mouth frame based on current character in the audio stream
-    const currentChar = fullCleanText[visibleChars] || displayedText.slice(-1);
-    const target = getMouthFrame(currentChar, isShouting);
+    // Pick frame based on the current character being spoken
+    const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
+    const targetFrame = getMouthFrame(currentChar, isShouting);
     
-    // Jitter logic for natural movement (only if not a pause)
-    let final = target;
-    if (target !== 0) {
-      const rand = Math.random();
-      if (target === 1 && rand > 0.8)                    final = 0;
-      else if (target === 1 && rand > 0.6 && isShouting) final = 2;
-      else if (target === 2 && rand > 0.7)               final = 1;
+    // Add minor variation for realism during sustained sounds
+    let finalFrame = targetFrame;
+    if (targetFrame !== 0 && Math.random() > 0.8) {
+      finalFrame = Math.max(0, targetFrame - 1);
     }
 
-    setFrameIndex(Math.min(final, frames.length - 1));
+    setFrameIndex(Math.min(finalFrame, frames.length - 1));
     lastMouthUpdate.current = now;
-  }, [isTtsSpeaking, avatarState, isLoading, displayedText, fullCleanText, visibleChars]);
+  }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText]);
 
+  // Resolve final image source based on calculated state and frame
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
-  const currentImage  = currentFrames[frameIndex % currentFrames.length];
+  const currentImage = currentFrames[frameIndex % currentFrames.length];
 
   useEffect(() => {
-    setImgSrc(currentImage);
+    if (currentImage) setImgSrc(currentImage);
   }, [currentImage]);
 
-  useEffect(() => { startListening(); return () => stopListening(); }, [startListening, stopListening]);
+  useEffect(() => { 
+    startListening(); 
+    return () => stopListening(); 
+  }, [startListening, stopListening]);
+
   useEffect(() => {
     if (transcript) setInputValue(p => p ? `${p.trim()} ${transcript}` : transcript);
   }, [transcript]);
@@ -191,7 +203,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         backgroundPosition: 'center'
       }}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.12)_0%,transparent_80%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.6)_100%)] pointer-events-none" />
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,9 +218,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
             alt="Amadeus Avatar" 
             className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 animate-sway"
             onError={() => {
-              if (imgSrc !== kurisuImageDataUrl) {
-                setImgSrc(kurisuImageDataUrl);
-              }
+              if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl);
             }}
           />
         </div>
@@ -220,7 +230,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                 <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic min-h-[1.5em]">
                   {isLoading
                     ? <span className="text-amber-500/40 text-base animate-pulse">...</span>
-                    : <>{displayedText}{isTtsSpeaking && <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle shadow-[0_0_15px_#f59e0b]" />}</>
+                    : <>{displayedText}{isTtsSpeaking && <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />}</>
                   }
                 </p>
                 <div className="mt-4 flex items-center justify-between">
@@ -240,7 +250,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
           <form onSubmit={handleSubmit} className="flex items-center space-x-3">
             <div className="relative flex-grow">
               <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)}
-                placeholder={isListening ? 'Listening to neural pulses...' : 'Voice link active...'}
+                placeholder={isListening ? 'Listening...' : 'Message...'}
                 className="w-full bg-black/60 border border-white/10 focus:border-amber-500/40 rounded-full py-4 px-8 text-white placeholder-white/10 transition-all outline-none backdrop-blur-2xl font-roboto-mono text-sm" />
             </div>
             <button type="submit" disabled={isLoading || !inputValue.trim()}

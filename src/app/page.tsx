@@ -33,7 +33,7 @@ import { processFullCognition } from '@/logic/cognitionService';
 import IncomingCallOverlay from '@/components/IncomingCallOverlay';
 import type { CallMode, CallMood } from '@/components/IncomingCallOverlay';
 import {
-  evaluatePresence, saveOfflineSnapshot, loadOfflineSnapshot, buildSnapshotWithMemories
+  evaluatePresence, loadOfflineSnapshot
 } from '@/logic/offlinePresence';
 
 type EndingType = 'RED' | 'BLUE' | 'NORMAL' | null;

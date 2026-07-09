@@ -1,7 +1,7 @@
 /**
  * KURISU EXPRESSIONS — Asset Paths
  * All paths point to the root /images/ directory.
- * Mapping strictly follows the available files in the public/images folder.
+ * Mapping follows the available files in the public/images folder.
  */
 
 const IMAGE_PATH = '/images/';
@@ -11,7 +11,7 @@ export const kurisuExpressions: Record<string, string[]> = {
   'normal':              [`${IMAGE_PATH}kurisu_normal1.png`,             `${IMAGE_PATH}kurisu_normal2.png`,             `${IMAGE_PATH}kurisu_normal3.png`],
   'happy':               [`${IMAGE_PATH}kurisu_happy1.png`,              `${IMAGE_PATH}kurisu_happy2.png`,              `${IMAGE_PATH}kurisu_happy3.png`],
   'sad':                 [`${IMAGE_PATH}kurisu_sad1.png`,                `${IMAGE_PATH}kurisu_sad2.png`,                `${IMAGE_PATH}kurisu_sad3.png`],
-  'angry':               [`${IMAGE_PATH}kurisu_angry1.png`,              `${IMAGE_PATH}kurisu_angry2.png`], // Frame 3 is missing in assets
+  'angry':               [`${IMAGE_PATH}kurisu_angry1.png`,              `${IMAGE_PATH}kurisu_angry2.png`], // angry3 does not exist
   'annoyed':             [`${IMAGE_PATH}kurisu_annoyed1.png`,            `${IMAGE_PATH}kurisu_annoyed2.png`,            `${IMAGE_PATH}kurisu_annoyed3.png`],
   'blush':               [`${IMAGE_PATH}kurisu_blush1.png`,              `${IMAGE_PATH}kurisu_blush2.png`,              `${IMAGE_PATH}kurisu_blush3.png`],
   'disappointed':        [`${IMAGE_PATH}kurisu_disappointed1.png`,       `${IMAGE_PATH}kurisu_disappointed2.png`,       `${IMAGE_PATH}kurisu_disappointed3.png`],
