@@ -373,7 +373,7 @@ export default function AmadeusApp() {
   }, [callOverlay, amadeusState, activeConversationId]);
 
   useEffect(() => {
-    if (!userProfile || activeEnding || !amadeusState) return;
+    if (!userProfile || activeEnding || !amadeusState || !isClient) return;
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
 
     const resetIdle = () => {
@@ -398,7 +398,7 @@ export default function AmadeusApp() {
 
     resetIdle();
     return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
-  }, [conversations, userProfile, activeEnding, amadeusState, callOverlay, playSound]);
+  }, [conversations, userProfile, activeEnding, amadeusState, callOverlay, playSound, isClient]);
 
   if (!isClient) return <div className="h-screen w-screen bg-black" />;
   if (activeEnding) return <TerminationScreen type={activeEnding} />;

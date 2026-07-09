@@ -32,7 +32,7 @@ const normalizeTag = (raw: string): string =>
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  // Automatic mouth closure for punctuation and pauses
+  // Close mouth on punctuation and spaces
   if (" .,!?;:()[]_-\n\t".includes(c)) return 0; 
   if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
@@ -72,21 +72,22 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const lastMouthUpdate = useRef<number>(0);
   const hasPlayedRef = useRef(false);
 
-  // Global Asset Preload
+  // Global Asset Preload for smooth swaps
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); img.src = src; 
     });
-    const blinkImg = new Image(); blinkImg.src = '/images/kurisu_blink.png';
+    new Image().src = '/images/kurisu_blink.png';
+    new Image().src = '/images/kurisu_side_blink.png';
   }, []);
 
-  // Organic Blinking Engine (~15 blinks/min)
+  // Organic Blinking Engine (approx 15 blinks/min)
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
       setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 150);
-      const nextDelay = 2000 + Math.random() * 4000;
+      setTimeout(() => setIsBlinking(false), 120);
+      const nextDelay = 1500 + Math.random() * 4500;
       blinkTimeout = setTimeout(triggerBlink, nextDelay);
     };
     blinkTimeout = setTimeout(triggerBlink, 3000);
@@ -179,18 +180,20 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
-  // Determine if expression is a profile (side) view to prevent front-facing blink overlay
+  // Determine if expression is a profile (side) view for correct blink asset selection
   const isSided = useMemo(() => {
     return avatarState.startsWith('side') || 
            ['thinking', 'surprised', 'pleasant', 'worried'].includes(avatarState);
   }, [avatarState]);
 
+  const blinkAsset = isSided ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
+
   return (
     <div 
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-end overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}
       style={{ backgroundImage: 'url(/images/background.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
     >
-      {/* Pre-decoding buffer for smooth 24fps swapping */}
+      {/* Pre-decoding buffer for smooth 24fps swaps */}
       <div className="hidden pointer-events-none" aria-hidden="true">
         {currentFrames.map((frame, i) => <img key={`${avatarState}-${i}`} src={frame} alt="" />)}
       </div>
@@ -204,24 +207,22 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       </button>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none">
-        <div className="absolute inset-0 flex items-end justify-center pointer-events-none z-10">
-          <div className="relative h-full flex items-end justify-center animate-sway will-change-transform transform-gpu w-full max-w-4xl">
-            <div className="relative h-full flex items-end justify-center">
+        <div className="relative h-full flex items-end justify-center animate-sway transform-gpu w-full max-w-4xl">
+          <div className="relative h-full flex items-end justify-center">
+            <img 
+              src={imgSrc} 
+              alt="Amadeus Avatar" 
+              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 transform-gpu will-change-transform"
+              onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
+            />
+            {/* Context-Aware Blink Overlay */}
+            {isBlinking && (
               <img 
-                src={imgSrc} 
-                alt="Amadeus Avatar" 
-                className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 transform-gpu"
-                onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
+                src={blinkAsset} 
+                alt="Blink" 
+                className="absolute bottom-0 h-[95%] w-auto object-contain transition-all duration-75 transform-gpu"
               />
-              {/* Intelligent Blink Overlay: Only shown for non-sided expressions */}
-              {isBlinking && !isSided && (
-                <img 
-                  src="/images/kurisu_blink.png" 
-                  alt="Blink" 
-                  className="absolute bottom-0 h-[95%] w-auto object-contain transition-all duration-75"
-                />
-              )}
-            </div>
+            )}
           </div>
         </div>
 
