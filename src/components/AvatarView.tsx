@@ -32,7 +32,7 @@ const normalizeTag = (raw: string): string =>
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  // Close mouth on punctuation and spaces
+  // Immediate closure for pauses, spaces, and punctuation
   if (" .,!?;:()[]_-\n\t".includes(c)) return 0; 
   if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
@@ -73,7 +73,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Global Asset Preload for smooth swaps
+  // Preload assets for glitch-free 24fps swapping
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); img.src = src; 
@@ -82,7 +82,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     new Image().src = '/images/kurisu_side_blink.png';
   }, []);
 
-  // Organic Blinking Engine (approx 15 blinks/min)
+  // Organic Blinking logic (~15 blinks/min)
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -112,7 +112,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Audio-Locked Progress Engine
+  // Audio-Locked Progress calculation
   const { displayedText, activeChunk, visibleCharsIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0 };
@@ -133,25 +133,26 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return { displayedText: textSoFar, activeChunk: selectedChunk, visibleCharsIndex: charCount };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
-  // Auto-scroll logic for the dialogue box
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [displayedText, isLoading]);
 
+  // Avatar state transitions: Normal -> Side (Thinking) -> Expression (Talking)
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
+    // Switch to side profile only while waiting for LLM result
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
+    // Switch to front (normal or response tag) as soon as text/audio starts
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
-  // Cinematic 24fps Lip-Sync Engine
+  // Cinematic 24fps Lip-Sync with phonetic pausing
   useEffect(() => {
     const now = Date.now();
-    // 24fps lockout (~41.6ms)
-    if (now - lastMouthUpdate.current < 41) return;
+    if (now - lastMouthUpdate.current < 41) return; // Cap at ~24fps
 
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
       setFrameIndex(0); return;
@@ -188,7 +189,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
-  // Determine if expression is a profile (side) view for correct blink asset selection
+  // Select blink overlay based on profile orientation
   const isSided = useMemo(() => {
     return avatarState.startsWith('side') || 
            ['thinking', 'surprised', 'pleasant', 'worried'].includes(avatarState);
@@ -196,7 +197,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const blinkAsset = isSided ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
-  // Helper to split text into paragraphs every 100 words
+  // Paragraph splitting logic (every 100 words)
   const splitTextIntoParagraphs = (text: string): string[] => {
     const words = text.split(' ');
     const paragraphs: string[] = [];
@@ -213,7 +214,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}
       style={{ backgroundImage: 'url(/images/background.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
     >
-      {/* Pre-decoding buffer for smooth 24fps swaps */}
       <div className="hidden pointer-events-none" aria-hidden="true">
         {currentFrames.map((frame, i) => <img key={`${avatarState}-${i}`} src={frame} alt="" />)}
       </div>
@@ -235,7 +235,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
               className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 transform-gpu will-change-transform"
               onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
             />
-            {/* Context-Aware Blink Overlay */}
             {isBlinking && (
               <img 
                 src={blinkAsset} 
@@ -246,7 +245,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
           </div>
         </div>
 
-        <div className="absolute bottom-40 right-4 left-4 md:right-12 md:left-auto md:top-1/2 md:-translate-y-1/2 md:w-1/3 md:max-w-sm flex flex-col gap-3 z-20 pointer-events-auto">
+        <div className="absolute bottom-40 right-4 left-4 md:right-12 md:left-auto md:top-1/2 md:-translate-y-1/2 md:w-1/3 md:max-sm flex flex-col gap-3 z-20 pointer-events-auto">
           {(displayedText || isLoading) && (
             <div key={`${msgTimestamp}`} className="animate-slide-in-right">
               <div className="bg-black/60 backdrop-blur-2xl border-l-4 border-amber-500/80 p-8 rounded-r-2xl shadow-2xl overflow-hidden flex flex-col">
