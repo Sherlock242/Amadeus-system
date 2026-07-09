@@ -71,6 +71,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
   const lastMouthUpdate = useRef<number>(0);
   const hasPlayedRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Global Asset Preload for smooth swaps
   useEffect(() => {
@@ -132,6 +133,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return { displayedText: textSoFar, activeChunk: selectedChunk, visibleCharsIndex: charCount };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
+  // Auto-scroll logic for the dialogue box
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [displayedText]);
+
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
@@ -188,6 +196,18 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const blinkAsset = isSided ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
+  // Helper to split text into paragraphs every 100 words
+  const splitTextIntoParagraphs = (text: string): string[] => {
+    const words = text.split(' ');
+    const paragraphs: string[] = [];
+    for (let i = 0; i < words.length; i += 100) {
+      paragraphs.push(words.slice(i, i + 100).join(' '));
+    }
+    return paragraphs;
+  };
+
+  const paragraphs = useMemo(() => splitTextIntoParagraphs(displayedText), [displayedText]);
+
   return (
     <div 
       className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}
@@ -229,14 +249,25 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         <div className="absolute bottom-40 right-4 left-4 md:right-12 md:left-auto md:top-1/2 md:-translate-y-1/2 md:w-1/3 md:max-w-sm flex flex-col gap-3 z-20 pointer-events-auto">
           {(displayedText || isLoading) && (
             <div key={`${msgTimestamp}`} className="animate-slide-in-right">
-              <div className="bg-black/60 backdrop-blur-2xl border-l-4 border-amber-500/80 p-8 rounded-r-2xl shadow-2xl">
-                <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic min-h-[1.5em]">
-                  {isLoading
-                    ? <span className="text-amber-500/40 text-base animate-pulse">...</span>
-                    : <>{displayedText}{isTtsSpeaking && <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />}</>
-                  }
-                </p>
-                <div className="mt-4 flex items-center justify-between">
+              <div className="bg-black/60 backdrop-blur-2xl border-l-4 border-amber-500/80 p-8 rounded-r-2xl shadow-2xl overflow-hidden flex flex-col">
+                <div 
+                  ref={scrollRef}
+                  className="max-h-[50vh] overflow-y-auto scrollbar-thin-amber space-y-6"
+                >
+                  {isLoading ? (
+                    <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic animate-pulse">...</p>
+                  ) : (
+                    paragraphs.map((para, idx) => (
+                      <p key={idx} className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
+                        {para}
+                        {idx === paragraphs.length - 1 && isTtsSpeaking && (
+                          <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
+                        )}
+                      </p>
+                    ))
+                  )}
+                </div>
+                <div className="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
                   <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'SYNCING' : 'STABLE'}</span>
                   <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag}</span>
                 </div>
