@@ -1,0 +1,43 @@
+'use server';
+
+/**
+ * @fileOverview Server Action to handle Fish Audio TTS requests.
+ * Bypasses CORS restrictions by performing the request server-side.
+ */
+
+export async function generateFishAudio(text: string) {
+  const API_KEY = 'fd1af515ce77428589c868599738d036';
+  const REFERENCE_ID = '9ce3e41cc44f4ed9b8e4a8688762c77f';
+
+  try {
+    const response = await fetch('https://api.fish.audio/v1/tts', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+        // Model string adjusted for free tier as per user instructions/screenshot
+        'model': 's2.1-pro-free' 
+      },
+      body: JSON.stringify({
+        text: text,
+        reference_id: REFERENCE_ID,
+        format: 'mp3',
+        normalize: true,
+        latency: 'normal'
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Fish Audio API error: ${response.status} - ${errorText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const base64Audio = Buffer.from(arrayBuffer).toString('base64');
+    
+    return { audioData: `data:audio/mpeg;base64,${base64Audio}` };
+  } catch (error) {
+    console.error('Error generating audio via Fish Audio:', error);
+    throw error;
+  }
+}
