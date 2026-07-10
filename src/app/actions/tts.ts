@@ -6,7 +6,8 @@
  */
 
 export async function generateFishAudio(text: string) {
-  const API_KEY = 'fd1af515ce77428589c868599738d036';
+  // Secured API Key via environment variable
+  const API_KEY = process.env.FISH_AUDIO_API_KEY;
   const REFERENCE_ID = '9ce3e41cc44f4ed9b8e4a8688762c77f';
 
   try {
