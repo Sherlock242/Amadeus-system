@@ -6,9 +6,9 @@
  */
 
 export async function generateFishAudio(text: string) {
-  // Secured API Key via environment variable
+  // Secured credentials via environment variables
   const API_KEY = process.env.FISH_AUDIO_API_KEY;
-  const REFERENCE_ID = '9ce3e41cc44f4ed9b8e4a8688762c77f';
+  const REFERENCE_ID = process.env.FISH_AUDIO_REFERENCE_ID;
 
   try {
     const response = await fetch('https://api.fish.audio/v1/tts', {
