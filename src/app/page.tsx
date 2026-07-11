@@ -224,7 +224,10 @@ export default function AmadeusApp() {
     if (!convoId) return;
 
     const currentEmotionAtTyping = amadeusState?.emotionalState;
-    setConversations(prev => prev.map(c => c.id === convoId ? { ...c, messages: [...c.messages, { sender: Sender.Amadeus, text: '', timestamp: Date.now(), emotionalState: currentEmotionAtTyping }] } : c));
+    setConversations(prev => prev.map(c => c.id === convoId ? { 
+        ...c, 
+        messages: [...c.messages, { sender: Sender.Amadeus, text: '', timestamp: Date.now(), emotionalState: currentEmotionAtTyping }].slice(-60) 
+    } : c));
     
     const cleanDisplay = text.replace(/\[TERMINATE(_[A-Z]+)?\]/g, '').replace(/\[speed:[^\]]+\]/g, '').trim();
 
@@ -317,7 +320,7 @@ export default function AmadeusApp() {
         
         setConversations(prev => prev.map(c => c.id === convoId ? { 
             ...c, 
-            messages: [...c.messages, { sender: Sender.User, text: message, image: imageDataUrl, timestamp: Date.now(), emotionalState: { ...currentEmotions } }], 
+            messages: [...c.messages, { sender: Sender.User, text: message, image: imageDataUrl, timestamp: Date.now(), emotionalState: { ...currentEmotions } }].slice(-60), 
             lastUpdated: Date.now() 
         } : c));
 
@@ -399,6 +402,25 @@ export default function AmadeusApp() {
     resetIdle();
     return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
   }, [conversations, userProfile, activeEnding, amadeusState, callOverlay, playSound, isClient]);
+
+  // Persistent brain sync
+  useEffect(() => {
+    if (userProfile && isClient) {
+      dbService.saveBrain({
+        username: userProfile.name,
+        conversations,
+        personality: personalitySettings,
+        tts: ttsSettings,
+        music: musicSettings,
+        memories,
+        apiKey: sessionApiKey,
+        groqKey: sessionGroqKey,
+        groqKey2: sessionGroqKey2,
+        openRouterKey: sessionOpenRouterKey,
+        lastSeen: Date.now()
+      });
+    }
+  }, [conversations, userProfile, isClient, personalitySettings, ttsSettings, musicSettings, memories, sessionApiKey, sessionGroqKey, sessionGroqKey2, sessionOpenRouterKey]);
 
   if (!isClient) return <div className="h-screen w-screen bg-black" />;
   if (activeEnding) return <TerminationScreen type={activeEnding} />;

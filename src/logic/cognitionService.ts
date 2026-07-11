@@ -1,5 +1,5 @@
 /**
- * AMADEUS UNIFIED COGNITION ENGINE v5.4
+ * AMADEUS UNIFIED COGNITION ENGINE v5.5
  * =========================================
  * Primary Engine: Groq (Llama 3.3 70B Versatile)
  * Secondary Engine: Cohere (OpenRouter)
@@ -14,6 +14,7 @@ import type {
   BasalGangliaAnalysis, VTAAnalysis, LocusCoeruleusAnalysis,
   RapheNucleiAnalysis, DMNAnalysis, NeurotransmitterState 
 } from '@/types';
+import { Sender } from '@/types';
 
 import { processThalamus }       from './thalamusSystem';
 import { processAmygdala }       from './amygdalaSystem';
@@ -97,6 +98,12 @@ export const processFullCognition = async (
   const keyA = groqKey?.trim() || primaryKey;
   const keyB = groqKey2?.trim() || keyA;
 
+  // Clean history for the LLM to prevent recursive tag hallucination
+  const chatHistory = history.map(m => ({
+    role: m.sender === Sender.User ? 'user' : 'assistant',
+    content: m.text.replace(/\[[a-z_:]+[^\]]*\]/gi, '').trim()
+  })).filter(m => m.content.length > 0);
+
   const [t, am, lc_res, ra, vt, hi, ins, tp, o, bg, ac, li, dm] = await Promise.all([
     safe(processThalamus(message, modulatedEmotions, history, activeNodeLabels, keyA, nc), FB.thalamus),
     safe(processAmygdala(message, modulatedEmotions, history.map(m => m.text), keyA, nc), FB.amygdala),
@@ -143,6 +150,7 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
           model: GROQ_MAIN_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
+            ...chatHistory,
             { role: 'user', content: message }
           ],
           temperature: 0.85,
@@ -153,7 +161,6 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
       if (resp.ok) {
         const data = await resp.json();
         rawText = data.choices[0]?.message?.content || '';
-        if (rawText) console.log(`[Cognition] Responded using Groq: ${GROQ_MAIN_MODEL}`);
       }
     } catch (e) {
       console.warn('[Cognition] Groq main model failed, trying fallbacks...');
@@ -176,6 +183,7 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
             model: modelId,
             messages: [
               { role: 'system', content: systemPrompt },
+              ...chatHistory,
               { role: 'user', content: message }
             ],
             temperature: 0.85,
@@ -190,7 +198,6 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
         
         if (content && content.trim()) {
           rawText = content;
-          console.log(`[Cognition] Responded using OpenRouter: ${modelId}`);
           break;
         }
       } catch (e) {
@@ -208,7 +215,13 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: message }] }],
+          contents: [
+            ...history.map(m => ({
+              role: m.sender === Sender.User ? 'user' : 'model',
+              parts: [{ text: m.text.replace(/\[[a-z_:]+[^\]]*\]/gi, '').trim() }]
+            })),
+            { role: 'user', parts: [{ text: message }] }
+          ],
           generationConfig: { temperature: 0.85, maxOutputTokens: 700 }
         })
       });
@@ -216,7 +229,6 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
       if (respG.ok) {
         const dataG = await respG.json();
         rawText = dataG?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-        if (rawText) console.log(`[Cognition] Responded using Gemini: ${GEMINI_MODEL}`);
       }
     } catch (e) {
       console.warn('[Cognition] Gemini failed.');
