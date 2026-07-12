@@ -42,15 +42,9 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const GROQ_MAIN_MODEL = 'llama-3.3-70b-versatile';
 
-// MULTI-MODEL FALLBACK CHAIN (Priority: Cohere North Mini Code Free)
+// MULTI-MODEL FALLBACK CHAIN
 const OPENROUTER_MODELS = [
-  'cohere/north-mini-code:free',
-  'anthropic/claude-3-haiku:free',
-  'google/gemini-flash-1.5-exp:free',
-  'deepseek/deepseek-r1:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen-2-72b-instruct:free',
-  'mistralai/mistral-7b-instruct:free'
+  'meta-llama/llama-4-scout'
 ];
 
 const FB = {
