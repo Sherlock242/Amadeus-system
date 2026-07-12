@@ -32,7 +32,6 @@ const normalizeTag = (raw: string): string =>
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  // Immediate closure for pauses, spaces, and punctuation
   if (" .,!?;:()[]_-\n\t".includes(c)) return 0; 
   if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
@@ -73,7 +72,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Preload assets for glitch-free 24fps swapping
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); img.src = src; 
@@ -82,13 +80,11 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     new Image().src = '/images/kurisu_side_blink.png';
   }, []);
 
-  // Organic Blinking logic (~15 blinks/min -> avg every 4s)
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
       setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 140); // Realistic blink duration
-      // Random interval between 2500ms and 5500ms for realistic variability (avg 4s = 15/min)
+      setTimeout(() => setIsBlinking(false), 140);
       const nextDelay = 2500 + Math.random() * 3000;
       blinkTimeout = setTimeout(triggerBlink, nextDelay);
     };
@@ -113,7 +109,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Audio-Locked Progress calculation
   const { displayedText, activeChunk, visibleCharsIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0 };
@@ -140,20 +135,16 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [displayedText, isLoading]);
 
-  // Transition Logic: Front -> Side (Thinking) -> Front (Speaking)
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
-    // Stay in side profile only while processing (isLoading)
     if (isLoading) return 'thinking';
-    // Return to front as soon as text/audio starts
     const tag = normalizeTag(activeChunk.tag);
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading]);
 
-  // Cinematic 24fps Lip-Sync with phonetic pausing
   useEffect(() => {
     const now = Date.now();
-    if (now - lastMouthUpdate.current < 41) return; // Cap at ~24fps
+    if (now - lastMouthUpdate.current < 41) return;
 
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
       setFrameIndex(0); return;
@@ -190,15 +181,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
-  // Select blink overlay based on profile orientation
-  const isSided = useMemo(() => {
-    return avatarState.startsWith('side') || 
-           ['thinking', 'surprised', 'pleasant', 'worried'].includes(avatarState);
-  }, [avatarState]);
+  // STRICT ORIENTATION PAIRING:
+  // sided_ images are profile, kurisu_side images are front (side-eyes).
+  const blinkAsset = imgSrc.includes('sided_') ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
-  const blinkAsset = isSided ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
-
-  // Paragraph splitting logic (every 100 words)
   const splitTextIntoParagraphs = (text: string): string[] => {
     const words = text.split(' ');
     const paragraphs: string[] = [];
@@ -233,14 +219,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
             <img 
               src={imgSrc} 
               alt="Amadeus Avatar" 
-              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transition-all duration-150 transform-gpu will-change-transform"
+              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transform-gpu will-change-transform"
               onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
             />
             {isBlinking && (
               <img 
                 src={blinkAsset} 
                 alt="Blink" 
-                className="absolute bottom-0 h-[95%] w-auto object-contain transition-all duration-75 transform-gpu"
+                className="absolute bottom-0 h-[95%] w-auto object-contain transform-gpu"
               />
             )}
           </div>
