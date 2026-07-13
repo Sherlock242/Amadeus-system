@@ -27,14 +27,14 @@ export const kurisuExpressions: Record<string, string[]> = {
   'sided_pleasant':      [`${IMAGE_PATH}kurisu_sided_pleasant1.png`,     `${IMAGE_PATH}kurisu_sided_pleasant2.png`,     `${IMAGE_PATH}kurisu_sided_pleasant3.png`],
   'sided_surprised':     [`${IMAGE_PATH}kurisu_sided_surprised1.png`,    `${IMAGE_PATH}kurisu_sided_surprised2.png`,    `${IMAGE_PATH}kurisu_sided_surprised3.png`],
   'sided_thinking':      [`${IMAGE_PATH}kurisu_sided_thinking1.png`,     `${IMAGE_PATH}kurisu_sided_thinking2.png`,     `${IMAGE_PATH}kurisu_sided_thinking3.png`],
-  'sided_worried':       [`${IMAGE_PATH}kurisu_sided_worried1.png`,      `${IMAGE_PATH}kurisu_sided_worried2.png`,      `${IMAGE_PATH}kurisu_sided_worried3.png`],
+  'sided_talking':       [`${IMAGE_PATH}kurisu_sided_talking1.png`,      `${IMAGE_PATH}kurisu_sided_talking2.png`,      `${IMAGE_PATH}kurisu_sided_talking3.png`],
   'sided_eyes_closed':   [`${IMAGE_PATH}kurisu_sided_eyes_closed1.png`,  `${IMAGE_PATH}kurisu_sided_eyes_closed2.png`,  `${IMAGE_PATH}kurisu_sided_eyes_closed3.png`],
 
   // ── Logical Aliases ──
   'thinking':            [`${IMAGE_PATH}kurisu_sided_thinking1.png`,     `${IMAGE_PATH}kurisu_sided_thinking2.png`,     `${IMAGE_PATH}kurisu_sided_thinking3.png`],
   'surprised':           [`${IMAGE_PATH}kurisu_sided_surprised1.png`,    `${IMAGE_PATH}kurisu_sided_surprised2.png`,    `${IMAGE_PATH}kurisu_sided_surprised3.png`],
   'pleasant':            [`${IMAGE_PATH}kurisu_sided_pleasant1.png`,     `${IMAGE_PATH}kurisu_sided_pleasant2.png`,     `${IMAGE_PATH}kurisu_sided_pleasant3.png`],
-  'worried':             [`${IMAGE_PATH}kurisu_sided_worried1.png`,      `${IMAGE_PATH}kurisu_sided_worried2.png`,      `${IMAGE_PATH}kurisu_sided_worried3.png`],
+  'worried':             [`${IMAGE_PATH}kurisu_sided_talking1.png`,      `${IMAGE_PATH}kurisu_sided_talking2.png`,      `${IMAGE_PATH}kurisu_sided_talking3.png`],
   'glitching':           [`${IMAGE_PATH}kurisu_pissed1.png`,             `${IMAGE_PATH}kurisu_pissed2.png`,             `${IMAGE_PATH}kurisu_pissed3.png`],
 };
 

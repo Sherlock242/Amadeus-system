@@ -139,8 +139,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
+    
+    // Switch to sided_talking if she is speaking while in a side profile state
+    const isSided = tag.includes('side') || tag === 'thinking';
+    if (isTtsSpeaking && isSided) {
+        return 'sided_talking';
+    }
+    
     return (kurisuExpressions[tag] ? tag : 'normal');
-  }, [activeChunk.tag, isGlitching, isLoading]);
+  }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   useEffect(() => {
     const now = Date.now();
@@ -181,8 +188,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
-  // STRICT ORIENTATION PAIRING:
-  // sided_ images are profile, kurisu_side images are front (side-eyes).
   const blinkAsset = imgSrc.includes('sided_') ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
   const splitTextIntoParagraphs = (text: string): string[] => {
