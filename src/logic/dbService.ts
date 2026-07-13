@@ -10,8 +10,6 @@ export interface UserBrain {
     memories: SynthesizedMemory[];
     lastLimbicState?: LimbicAnalysis | null;
     apiKey: string;
-    groqKey?: string;
-    groqKey2?: string;
     openRouterKey?: string;
     lastSeen: number;
 }

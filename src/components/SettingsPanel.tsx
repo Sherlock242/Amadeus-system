@@ -9,10 +9,8 @@ interface SettingsPanelProps {
   currentTtsSettings: TtsSettings;
   currentMusicSettings: MusicSettings;
   currentApiKey?: string;
-  currentGroqKey?: string;
-  currentGroqKey2?: string;
   currentOpenRouterKey?: string;
-  onSave: (settings: PersonalitySettings, ttsSettings: TtsSettings, musicSettings: MusicSettings, newKey?: string, newGroq?: string, newGroq2?: string, openRouter?: string) => void;
+  onSave: (settings: PersonalitySettings, ttsSettings: TtsSettings, musicSettings: MusicSettings, newKey?: string, openRouter?: string) => void;
   onClose: () => void;
   voices: SpeechSynthesisVoice[];
   onTestVoice: (options: TtsSettings) => void;
@@ -48,18 +46,16 @@ const AVAILABLE_TRACKS = [
 ];
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({ 
-    currentSettings, currentTtsSettings, currentMusicSettings, currentApiKey, currentGroqKey, currentGroqKey2, currentOpenRouterKey, onSave, onClose, voices, onTestVoice
+    currentSettings, currentTtsSettings, currentMusicSettings, currentApiKey, currentOpenRouterKey, onSave, onClose, voices, onTestVoice
 }) => {
   const [settings, setSettings] = useState<PersonalitySettings>(currentSettings);
   const [ttsSettings, setTtsSettings] = useState<TtsSettings>(currentTtsSettings);
   const [musicSettings, setMusicSettings] = useState<MusicSettings>(currentMusicSettings);
   const [apiKey, setApiKey] = useState(currentApiKey || '');
-  const [groqKey, setGroqKey] = useState(currentGroqKey || '');
-  const [groqKey2, setGroqKey2] = useState(currentGroqKey2 || '');
   const [openRouterKey, setOpenRouterKey] = useState(currentOpenRouterKey || '');
   
   const handleSave = () => {
-      onSave(settings, ttsSettings, musicSettings, apiKey, groqKey, groqKey2, openRouterKey);
+      onSave(settings, ttsSettings, musicSettings, apiKey, openRouterKey);
   };
 
   const handleMusicChange = (field: keyof MusicSettings, value: any) => {
@@ -89,33 +85,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 
                 <div className="space-y-4">
                     <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-orbitron text-amber-400/60 uppercase tracking-widest ml-1">Gemini API Key</label>
+                        <label className="text-[10px] font-orbitron text-amber-400/60 uppercase tracking-widest ml-1">Groq API Key (Primary)</label>
                         <input 
                             type="password" 
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
                             placeholder="Update Neural Link Key..."
                             className="w-full bg-black/50 border border-amber-900/30 rounded-xl py-3 px-4 text-amber-200 outline-none focus:border-amber-500 transition-all font-roboto-mono text-xs"
-                        />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-orbitron text-cyan-400/60 uppercase tracking-widest ml-1">Groq API Key #1</label>
-                        <input 
-                            type="password" 
-                            value={groqKey}
-                            onChange={(e) => setGroqKey(e.target.value)}
-                            placeholder="Groq Key 1..."
-                            className="w-full bg-black/50 border border-cyan-900/30 rounded-xl py-3 px-4 text-cyan-200 outline-none focus:border-cyan-500 transition-all font-roboto-mono text-xs"
-                        />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-orbitron text-cyan-400/60 uppercase tracking-widest ml-1">Groq API Key #2</label>
-                        <input 
-                            type="password" 
-                            value={groqKey2}
-                            onChange={(e) => setGroqKey2(e.target.value)}
-                            placeholder="Groq Key 2..."
-                            className="w-full bg-black/50 border border-cyan-900/30 rounded-xl py-3 px-4 text-cyan-200 outline-none focus:border-cyan-500 transition-all font-roboto-mono text-xs"
                         />
                     </div>
                     <div className="flex flex-col gap-2">

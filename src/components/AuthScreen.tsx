@@ -95,7 +95,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onInitializeSta
                     <form onSubmit={handleSubmit} className="relative z-10">
                         <AuthInput label="Laboratory ID" type="text" value={username} onChange={setUsername} placeholder="USERNAME..." disabled={isLoading} />
                         <AuthInput label="Security Protocol" type="password" value={password} onChange={setPassword} placeholder="PASSWORD..." disabled={isLoading} />
-                        <AuthInput label="Neural Link Key (Gemini API)" type="password" value={apiKey} onChange={setApiKey} placeholder="AI_KEY_REQUIRED..." disabled={isLoading} isKey />
+                        <AuthInput label="Neural Link Key (Groq API)" type="password" value={apiKey} onChange={setApiKey} placeholder="GROQ_KEY_REQUIRED..." disabled={isLoading} isKey />
                         <AuthInput label="OpenRouter Key (Optional)" type="password" value={openRouterKey} onChange={setOpenRouterKey} placeholder="OPENROUTER_KEY..." disabled={isLoading} />
 
                         {error && (

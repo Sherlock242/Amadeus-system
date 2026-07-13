@@ -1,5 +1,6 @@
+
 /**
- * AMADEUS MEMORY SYNTHESIS ENGINE
+ * AMADEUS MEMORY SYNTHESIS ENGINE (GROQ)
  */
 
 import { apiFetch } from './apiBridge';
@@ -23,21 +24,22 @@ export const synthesizeMemory = async (
     .join('\n');
 
   try {
-    const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const geminiResp = await apiFetch(geminiEndpoint, {
+    const groqEndpoint = `https://api.groq.com/openai/v1/chat/completions`;
+    const groqResp = await apiFetch(groqEndpoint, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json' 
+      },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: 'Summarize this conversation as a memory for Makise Kurisu:\n' + transcript }] }],
-        generationConfig: {
-          temperature: 0.45,
-          maxOutputTokens: 1000,
-        }
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: 'Summarize this conversation as a memory for Makise Kurisu in the third person. Keep it concise and scientific in tone:\n' + transcript }],
+        temperature: 0.45,
       })
     });
 
-    const geminiData = await geminiResp.json();
-    const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const groqData = await groqResp.json();
+    const text = groqData?.choices?.[0]?.message?.content;
     if (!text) throw new Error('Empty response');
 
     return {
@@ -48,6 +50,7 @@ export const synthesizeMemory = async (
       emotionalSnapshot: conversation.amadeusState.emotionalState
     };
   } catch (err) {
+    console.error('[MemoryService] Synthesis failed:', err);
     return null;
   }
 };

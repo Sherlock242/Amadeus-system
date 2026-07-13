@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -42,8 +43,6 @@ export default function AmadeusApp() {
   const [isClient, setIsClient] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [sessionApiKey, setSessionApiKey] = useState<string>('');
-  const [sessionGroqKey, setSessionGroqKey] = useState<string>('');
-  const [sessionGroqKey2, setSessionGroqKey2] = useState<string>('');
   const [sessionOpenRouterKey, setSessionOpenRouterKey] = useState<string>('');
   const [showSplash, setShowSplash] = useState<boolean>(true); 
   const [activeEnding, setActiveEnding] = useState<EndingType>(null); 
@@ -99,9 +98,7 @@ export default function AmadeusApp() {
   useEffect(() => {
     setIsClient(true);
     if (typeof window !== 'undefined') {
-      setSessionApiKey(localStorage.getItem('amadeus-gemini-key') || '');
-      setSessionGroqKey(localStorage.getItem('amadeus-groq-key') || '');
-      setSessionGroqKey2(localStorage.getItem('amadeus-groq-key2') || '');
+      setSessionApiKey(localStorage.getItem('amadeus-groq-key') || '');
       setSessionOpenRouterKey(localStorage.getItem('amadeus-openrouter-key') || '');
     }
   }, []);
@@ -182,8 +179,6 @@ export default function AmadeusApp() {
         setMusicSettings(brain.music);
         setMemories(brain.memories);
         setSessionApiKey(brain.apiKey || apiKey);
-        setSessionGroqKey(brain.groqKey || '');
-        setSessionGroqKey2(brain.groqKey2 || '');
         setSessionOpenRouterKey(brain.openRouterKey || openRouterKey || '');
         if (brain.conversations.length > 0) setActiveConversationId(brain.conversations[0].id);
     } else {
@@ -263,9 +258,7 @@ export default function AmadeusApp() {
             memories, 
             updatedNeuralNetwork, 
             imageDataUrl,
-            sessionGroqKey,
             sessionApiKey,
-            sessionGroqKey2,
             sessionOpenRouterKey
         );
 
@@ -414,13 +407,11 @@ export default function AmadeusApp() {
         music: musicSettings,
         memories,
         apiKey: sessionApiKey,
-        groqKey: sessionGroqKey,
-        groqKey2: sessionGroqKey2,
         openRouterKey: sessionOpenRouterKey,
         lastSeen: Date.now()
       });
     }
-  }, [conversations, userProfile, isClient, personalitySettings, ttsSettings, musicSettings, memories, sessionApiKey, sessionGroqKey, sessionGroqKey2, sessionOpenRouterKey]);
+  }, [conversations, userProfile, isClient, personalitySettings, ttsSettings, musicSettings, memories, sessionApiKey, sessionOpenRouterKey]);
 
   if (!isClient) return <div className="h-screen w-screen bg-black" />;
   if (activeEnding) return <TerminationScreen type={activeEnding} />;
@@ -441,7 +432,7 @@ export default function AmadeusApp() {
           />
         )}
         {isLogsOpen && <CognitiveLogPanel logs={cognitiveLogs} onClose={() => setIsLogsOpen(false)} />}
-        {isSettingsOpen && <SettingsPanel currentSettings={personalitySettings} currentTtsSettings={ttsSettings} currentMusicSettings={musicSettings} currentApiKey={sessionApiKey} currentGroqKey={sessionGroqKey} currentGroqKey2={sessionGroqKey2} currentOpenRouterKey={sessionOpenRouterKey} onSave={(p, t, m, key, groq, groq2, openRouter) => { setPersonalitySettings(p); setTtsSettings(t); setMusicSettings(m); if (key !== undefined) { setSessionApiKey(key); localStorage.setItem('amadeus-gemini-key', key); } if (groq !== undefined) { setSessionGroqKey(groq); localStorage.setItem('amadeus-groq-key', groq); } if (groq2 !== undefined) { setSessionGroqKey2(groq2); localStorage.setItem('amadeus-groq-key2', groq2); } if (openRouter !== undefined) { setSessionOpenRouterKey(openRouter); localStorage.setItem('amadeus-openrouter-key', openRouter); } setIsSettingsOpen(false); }} onClose={() => setIsSettingsOpen(false)} voices={voices} onTestVoice={(o) => speak("Signal testing.", o)} onExport={() => {}} onImport={() => {}} />}
+        {isSettingsOpen && <SettingsPanel currentSettings={personalitySettings} currentTtsSettings={ttsSettings} currentMusicSettings={musicSettings} currentApiKey={sessionApiKey} currentOpenRouterKey={sessionOpenRouterKey} onSave={(p, t, m, key, openRouter) => { setPersonalitySettings(p); setTtsSettings(t); setMusicSettings(m); if (key !== undefined) { setSessionApiKey(key); localStorage.setItem('amadeus-groq-key', key); } if (openRouter !== undefined) { setSessionOpenRouterKey(openRouter); localStorage.setItem('amadeus-openrouter-key', openRouter); } setIsSettingsOpen(false); }} onClose={() => setIsSettingsOpen(false)} voices={voices} onTestVoice={(o) => speak("Signal testing.", o)} onExport={() => {}} onImport={() => {}} />}
         {isKurisuProfileOpen && <KurisuProfilePanel onClose={() => setIsKurisuProfileOpen(false)} />}
         {isMemoriesOpen && <MemoryArchivePanel isOpen={isMemoriesOpen} memories={memories} onClose={() => setIsMemoriesOpen(false)} />}
         {isAboutOpen && <AboutPanel onClose={() => setIsAboutOpen(false)} />}

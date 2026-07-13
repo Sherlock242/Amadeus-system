@@ -1,9 +1,9 @@
+
 /**
- * AMADEUS UNIFIED COGNITION ENGINE v5.5
+ * AMADEUS UNIFIED COGNITION ENGINE v5.6
  * =========================================
  * Primary Engine: Groq (Llama 3.3 70B Versatile)
  * Secondary Engine: Cohere (OpenRouter)
- * Fallback Engine: Google Gemini
  */
 
 import { apiFetch } from './apiBridge';
@@ -39,7 +39,6 @@ import {
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const GEMINI_MODEL = 'gemini-2.0-flash';
 const GROQ_MAIN_MODEL = 'llama-3.3-70b-versatile';
 
 // MULTI-MODEL FALLBACK CHAIN
@@ -75,13 +74,11 @@ export const processFullCognition = async (
   neuralState: NeuralNetworkState,
   imageDataUrl?: string,
   groqKey?: string,
-  geminiKey?: string,
-  groqKey2?: string,
   openRouterKey?: string
 ) => {
-  const primaryKey = groqKey?.trim() || openRouterKey?.trim() || geminiKey?.trim();
+  const primaryKey = groqKey?.trim() || openRouterKey?.trim();
   if (!primaryKey) {
-    console.error('Cognition: No primary API key provided.');
+    console.error('Cognition: No API key provided.');
     return null;
   }
 
@@ -90,7 +87,6 @@ export const processFullCognition = async (
   const activeNodeLabels = Object.values(neuralState.nodes).filter(n => n.energy >= n.threshold).map(n => n.label);
 
   const keyA = groqKey?.trim() || primaryKey;
-  const keyB = groqKey2?.trim() || keyA;
 
   // Clean history for the LLM to prevent recursive tag hallucination
   const chatHistory = history.map(m => ({
@@ -104,14 +100,14 @@ export const processFullCognition = async (
     safe(processLocusCoeruleus(message, modulatedEmotions, keyA, nc), FB.lc),
     safe(processRapheNuclei(message, modulatedEmotions, keyA, nc), FB.raphe),
     safe(processVTA(message, modulatedEmotions, keyA, nc), FB.vta),
-    safe(processHippocampus(message, memories, activeNodeLabels, keyB!, nc), FB.hippocampus),
-    safe(processInsula(message, modulatedEmotions, history, activeNodeLabels, keyB!, nc), FB.insula),
-    safe(processTPJ(message, modulatedEmotions, history, activeNodeLabels, keyB!, nc), FB.tpj),
-    safe(processOFC(message, modulatedEmotions, history, keyB!, nc), FB.ofc),
-    safe(processBasalGanglia(message, modulatedEmotions, keyB!, nc), FB.basalGanglia),
+    safe(processHippocampus(message, memories, activeNodeLabels, keyA, nc), FB.hippocampus),
+    safe(processInsula(message, modulatedEmotions, history, activeNodeLabels, keyA, nc), FB.insula),
+    safe(processTPJ(message, modulatedEmotions, history, activeNodeLabels, keyA, nc), FB.tpj),
+    safe(processOFC(message, modulatedEmotions, history, keyA, nc), FB.ofc),
+    safe(processBasalGanglia(message, modulatedEmotions, keyA, nc), FB.basalGanglia),
     safe(processACC(message, modulatedEmotions, history, activeNodeLabels, keyA, nc), FB.acc),
-    safe(processLimbicSystem(message, null, modulatedEmotions, history, activeNodeLabels, keyB!, nc), FB.limbic),
-    safe(processDMN(message, modulatedEmotions, activeNodeLabels, keyB!, nc), FB.dmn),
+    safe(processLimbicSystem(message, null, modulatedEmotions, history, activeNodeLabels, keyA, nc), FB.limbic),
+    safe(processDMN(message, modulatedEmotions, activeNodeLabels, keyA, nc), FB.dmn),
   ]);
 
   const bioState = (neuralState as any).biologicalState || createInitialBiologicalState();
@@ -197,35 +193,6 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
       } catch (e) {
         console.warn(`[Cognition] OpenRouter model ${modelId} failed, trying next...`);
       }
-    }
-  }
-
-  // ── 3. Fallback: Gemini ──
-  if (!rawText && geminiKey?.trim()) {
-    try {
-      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey.trim()}`;
-      const respG = await apiFetch(geminiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [
-            ...history.map(m => ({
-              role: m.sender === Sender.User ? 'user' : 'model',
-              parts: [{ text: m.text.replace(/\[[a-z_:]+[^\]]*\]/gi, '').trim() }]
-            })),
-            { role: 'user', parts: [{ text: message }] }
-          ],
-          generationConfig: { temperature: 0.85, maxOutputTokens: 700 }
-        })
-      });
-
-      if (respG.ok) {
-        const dataG = await respG.json();
-        rawText = dataG?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      }
-    } catch (e) {
-      console.warn('[Cognition] Gemini failed.');
     }
   }
 
