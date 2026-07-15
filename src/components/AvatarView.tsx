@@ -32,25 +32,37 @@ interface AvatarViewProps {
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '');
 
+/**
+ * High-precision Viseme Mapping for Japanese and English
+ * Mapped to 3-frame sequence: [0: Closed, 1: Half-Open, 2: Fully Open]
+ */
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
-  // Silent characters (including Japanese punctuation)
+  // Punctuation and whitespace = Closed
   if (" .,!?;:()[]_-\n\t「」。、！？".includes(c)) return 0; 
   
-  // English/Turkish Vowels
-  if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
-  
-  // Japanese Characters (Hiragana, Katakana, Kanji)
-  // Most Japanese characters are syllables ending in vowels, so they trigger mouth movement.
-  const isJapanese = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(c);
-  if (isJapanese) return isShouting ? 2 : 1;
+  // Japanese Vowel-based Mapping (Hiragana/Katakana)
+  // 'a' sounds (あ, か, さ...) & 'e' sounds (え, け, せ...) = Wide Open (Frame 2)
+  if (/[あかさたなはまやらわえけせてねへめれアカサタナハマヤラワエケセテネヘメレ]/.test(c)) {
+    return isShouting ? 2 : 2; 
+  }
+  // 'i', 'u', 'o' sounds = Half-Open (Frame 1)
+  if (/[いきしちにひみりうくすつぬふむゆるおこそとのほもよろイキシチニヒミリウクスツヌフMLオコソトノホモヨロ]/.test(c)) {
+    return isShouting ? 2 : 1;
+  }
+  // 'n' sound (ん) = Closed (Frame 0)
+  if (/[んン]/.test(c)) return 0;
 
-  // Consonants
-  if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
-  
-  // Default for any other non-silent character
+  // English/Latin Vowels
+  if ('ae'.includes(c)) return 2;
+  if ('ouıiöü'.includes(c)) return 1;
+
+  // Generic Kanji / Consonant fallback
+  const isJapanese = /[\u4e00-\u9faf]/.test(c);
+  if (isJapanese) return 1;
+
   return 1;
 };
 
@@ -89,6 +101,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Preload expressions
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); img.src = src; 
@@ -97,6 +110,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     new Image().src = '/images/kurisu_side_blink.png';
   }, []);
 
+  // Blinking logic
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -120,6 +134,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
+  // Audio start sound
   useEffect(() => {
     if (isLoading) { hasPlayedRef.current = false; return; }
     if (!hasPlayedRef.current && lastAmadeusMessage.length > 0) {
@@ -127,6 +142,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
+  // Unified text reveal linked to audio progress
   const { displayedText, activeChunk, visibleCharsIndex, isComplete } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0, isComplete: false };
@@ -153,26 +169,28 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [displayedText, isLoading]);
 
+  // Determine Sprite State
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
     
-    // Check if the current orientation is a side profile head view
+    // Check if current tag orientation is profile head
     const isProfileHead = ['thinking', 'worried', 'sided_talking'].includes(tag) || tag.startsWith('sided_');
 
-    // If talking in any profile-based head view, use the profile talking asset
+    // Adaptive switch to talking sprite if voice is active in profile view
     if (isTtsSpeaking && isProfileHead) {
       return 'sided_talking';
     }
     
-    // Otherwise return the tag or normal
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
+  // Precise Lip-Sync Frame Selection
   useEffect(() => {
     const now = Date.now();
-    if (now - lastMouthUpdate.current < 41) return;
+    // Reduce throttle to 16ms (approx 60fps) for precise high-speed lip-sync
+    if (now - lastMouthUpdate.current < 16) return;
 
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
       setFrameIndex(0); return;
@@ -209,18 +227,17 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
+  // Orientation-specific Blinking
   const blinkAsset = imgSrc.includes('sided_') ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
-  const splitTextIntoParagraphs = (text: string): string[] => {
-    const words = text.split(' ');
-    const paragraphs: string[] = [];
+  const paragraphs = useMemo(() => {
+    const words = displayedText.split(' ');
+    const result: string[] = [];
     for (let i = 0; i < words.length; i += 100) {
-      paragraphs.push(words.slice(i, i + 100).join(' '));
+      result.push(words.slice(i, i + 100).join(' '));
     }
-    return paragraphs;
-  };
-
-  const paragraphs = useMemo(() => splitTextIntoParagraphs(displayedText), [displayedText]);
+    return result;
+  }, [displayedText]);
 
   return (
     <div 
