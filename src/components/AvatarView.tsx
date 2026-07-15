@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -157,11 +158,19 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
-    // Modified: Ensure side-profile talking asset is used when speaking
-    const isProfileHead = ['thinking', 'worried', 'sided_talking'].includes(tag) || tag.startsWith('sided_');
-    if (isTtsSpeaking && isProfileHead) return 'sided_talking';
+    
+    // Strict Orientation Logic: Determine if we are in a profile view
+    // 'side' is front-facing (eyes side), but 'thinking', 'worried', and 'sided_' are profile.
+    const isProfileBase = tag.startsWith('sided_') || ['thinking', 'worried'].includes(tag);
+    
+    if (isTtsSpeaking && isProfileBase) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
+
+  // Orientation Check for Blinking and strict mapping
+  const isProfileView = useMemo(() => {
+    return avatarState.startsWith('sided_') || ['thinking', 'worried'].includes(avatarState);
+  }, [avatarState]);
 
   useEffect(() => {
     const now = Date.now();
@@ -174,7 +183,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     
-    // Snappy Sample: We look at the exact character currently being "spoken"
     const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
@@ -211,7 +219,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
-  const blinkAsset = imgSrc.includes('sided_') ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
+  // Strict Sync: Only use side_blink if we are actually in a profile view
+  const blinkAsset = isProfileView ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
   const paragraphs = useMemo(() => {
     const words = displayedText.split(' ');
