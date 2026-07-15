@@ -31,10 +31,15 @@ interface AvatarViewProps {
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
 
+/**
+ * High-precision Viseme Engine
+ * Strictly separates Japanese and English phonetic rules.
+ */
 const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
+  // Independent Japanese Engine (High-speed syllable transitions)
   if (language === 'jp') {
     if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
     if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
@@ -43,12 +48,17 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
     if ('iue'.includes(c)) return 1;
     if (/[んン]/.test(c)) return 0;
     return isShouting ? 2 : 1;
-  } else {
-    if (" .,!?;:()[]_-\n\t".includes(c)) return 0;
-    if (/[aeo]/.test(c)) return 2;
-    if (/[iuy]/.test(c)) return 1;
-    return isShouting ? 2 : 1;
-  }
+  } 
+  
+  // Independent English Engine (Cinematic cadence)
+  // Perfectly handles punctuation pauses and distinct Latin vowels
+  const englishPunctuation = " .,!?;:()[]_-\n\t'\"`";
+  if (englishPunctuation.includes(c)) return 0;
+  
+  if (/[aeo]/.test(c)) return 2; // Open/Wide vowels
+  if (/[iuy]/.test(c)) return 1; // Narrow/Mid vowels
+  
+  return isShouting ? 2 : 1;
 };
 
 interface Chunk { tag: string; text: string; }
@@ -155,26 +165,29 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
     
-    // Lock 'side' tag to front head. Other sided tags and thinking/surprised/etc are profile views.
-    const isProfileBase = (tag.includes('side') || 
-                         ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag)) &&
-                         tag !== 'side';
+    // STRICT ORIENTATION DETECTION
+    // Identifies if we should be using profile-head frames.
+    const isProfileBase = tag.includes('sided_') || 
+                         ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
     
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
-    // Strictly lock all 'sideD' or alias images to kurisu_side_blink.png.
-    // 'side' (kurisu_side1,2,3) is a front-facing head orientation.
-    return (avatarState.includes('side') || 
-           ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState)) && 
-           avatarState !== 'side';
+    // Lock 'sided_' tags and profile aliases to side-blink asset.
+    // 'side' (eyes-aside) remains a front-facing head per user requirement.
+    return avatarState.includes('sided_') || 
+           ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState]);
 
   useEffect(() => {
     const now = Date.now();
+    // STRICT FPS SEPARATION
+    // Japanese voice: 60fps (16ms)
+    // English voice: 24fps (41ms)
     const frameInterval = language === 'jp' ? 16 : 41; 
+    
     if (now - lastMouthUpdate.current < frameInterval) return;
     
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
@@ -187,6 +200,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
+    // Micro-jitter for biological realism
     if (targetFrame > 0 && Math.random() > 0.8) {
       targetFrame = targetFrame === 2 ? 1 : 2;
     }
