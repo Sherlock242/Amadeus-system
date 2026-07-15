@@ -34,33 +34,27 @@ const normalizeTag = (raw: string): string =>
 
 /**
  * High-precision Viseme Engine
- * Strictly separates Japanese and English phonetic rules.
  */
 const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
-  // Independent Japanese Engine (High-speed syllable transitions)
-  // Optimized for 60fps (16ms) sampling
   if (language === 'jp') {
     if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
     if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
     if ('ao'.includes(c)) return 2;
-    if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエKEセテネヘメレ]/.test(c)) return 1;
+    if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエKEセテネHEメレ]/.test(c)) return 1;
     if ('iue'.includes(c)) return 1;
     if (/[んン]/.test(c)) return 0;
     return isShouting ? 2 : 1;
   } 
   
-  // Independent English Engine (Cinematic cadence)
-  // Optimized for 24fps (41ms) sampling
-  // PERFECT PUNCTUATION STOP: Ensures mouth closes at pauses
-  const englishPunctuation = ".,!?;:()[]_-\n\t'\"` "; 
-  if (englishPunctuation.indexOf(c) !== -1) return 0;
+  // English Sync Engine
+  const englishSilence = ".,!?;:()[]_-\n\t'\"` "; 
+  if (englishSilence.indexOf(c) !== -1) return 0;
   
-  // Vowel-specific visemes
-  if (/[aou]/.test(c)) return 2; // Open/Wide vowels
-  if (/[eiy]/.test(c)) return 1; // Narrow/Mid vowels
+  if (/[aou]/.test(c)) return 2; 
+  if (/[eiy]/.test(c)) return 1; 
   
   return isShouting ? 2 : 1;
 };
@@ -138,6 +132,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
+  // Unified Synchronization Point: Subtitles and logic share progress derived from TTS timing
   const { displayedText, activeChunk, visibleCharsIndex, isComplete } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0, isComplete: false };
@@ -169,7 +164,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
     
-    // STRICT ORIENTATION DETECTION
     const isProfileBase = tag.includes('sided_') || 
                          ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
     
@@ -178,14 +172,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
-    // side tag remains front-facing head per requirement
+    // 'side' (kurisu_side1,2,3) is treated as front-facing head per requirement
     return avatarState.includes('sided_') || 
            ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState]);
 
+  // Mouth Animation Loop: Triggered by changes in visible text to maintain 100% sync
   useEffect(() => {
     const now = Date.now();
-    // FPS SEPARATION: 16ms (JP) / 41ms (EN)
+    // English Engine: 41ms (24fps) | Japanese Engine: 16ms (60fps)
     const frameInterval = language === 'jp' ? 16 : 41; 
     
     if (now - lastMouthUpdate.current < frameInterval) return;
@@ -195,20 +190,20 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     
-    // Sample char precisely
+    // Sample precisely the character being shown in subtitles right now
     const currentChar = fullCleanText[Math.max(0, visibleCharsIndex - 1)] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
-    // Jitter for life-like movement
+    // Slight jitter for organic feel during speech
     if (targetFrame > 0 && Math.random() > 0.85) {
       targetFrame = targetFrame === 2 ? 1 : 2;
     }
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
     lastMouthUpdate.current = now;
-  }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText, language]);
+  }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText, language, currentTime]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
   const currentImage = currentFrames[frameIndex % currentFrames.length];
