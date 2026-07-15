@@ -30,7 +30,7 @@ import {
   applyHomeostasis
 } from '@/logic/neuralNetwork';
 import { synthesizeMemory } from '@/logic/memoryService';
-import { processFullCognition } from '@/logic/cognitionService';
+import { processFullCognition, translateText } from '@/logic/cognitionService';
 import IncomingCallOverlay from '@/components/IncomingCallOverlay';
 import type { CallMode, CallMood } from '@/components/IncomingCallOverlay';
 import {
@@ -82,7 +82,7 @@ export default function AmadeusApp() {
 
   const [sessionSettings, setSessionSettings] = useState({ isWebSearchEnabled: false, reasoningMode: 'Balanced' as any, isCannedModeOnly: false, isAudioLoreMode: false });
   const [musicSettings, setMusicSettings] = useState<MusicSettings>({ selectedTrack: 'none', volume: 0.5, isPlaying: false });
-  const [ttsSettings, setTtsSettings] = useState<TtsSettings>({ engine: 'browser', browserVoiceURI: null, browserPitch: 1.2, browserRate: 1.0 });
+  const [ttsSettings, setTtsSettings] = useState<TtsSettings>({ engine: 'browser', language: 'en', browserVoiceURI: null, browserPitch: 1.2, browserRate: 1.0, elevenLabsVoiceId: '', elevenLabsStability: 0.5, elevenLabsClarity: 0.5 });
   
   const [personalitySettings, setPersonalitySettings] = useState<PersonalitySettings>({ 
       tsundere: 30, sarcasm: 25, scientific: 95, temperature: 0.8, topK: 40, isNsfwMode: false,
@@ -188,28 +188,6 @@ export default function AmadeusApp() {
     setUserProfile(profile);
     if (!brain || brain.conversations.length === 0) {
       handleStartNewChat();
-    } else {
-      const snapshot = loadOfflineSnapshot();
-      if (snapshot) {
-        const decision = evaluatePresence(snapshot);
-        if (decision.amadeusWillCall) {
-          playSound('incoming');
-          setCallOverlay({
-            mode: 'amadeus_calling',
-            mood: decision.callMood,
-            reason: decision.callReason,
-            minutesElapsed: decision.minutesElapsed,
-            evolvedEmotions: decision.evolvedEmotions,
-          });
-        } else if (!decision.willPickUp) {
-          setTimeout(() => {
-            setCallOverlay({
-              mode: 'rejected',
-              rejectMessage: decision.rejectReason,
-            });
-          }, 1800);
-        }
-      }
     }
   };
 
@@ -235,7 +213,9 @@ export default function AmadeusApp() {
     setIsSpeaking(false);
     if (ttsSettings.engine !== 'disabled') {
         const speakableText = cleanDisplay.replace(/\[[a-z_:]+[^\]]*\]/g, '').trim();
-        speak(speakableText, ttsSettings);
+        // Use Japanese Reference ID if language is jp
+        const referenceId = ttsSettings.language === 'jp' ? '0ec9e84ba69b4f15ab3b52ac542b6693' : undefined;
+        speak(speakableText, { ...ttsSettings, elevenLabsVoiceId: referenceId || '' });
     }
   };
 
@@ -259,7 +239,8 @@ export default function AmadeusApp() {
             updatedNeuralNetwork, 
             imageDataUrl,
             sessionApiKey,
-            sessionOpenRouterKey
+            sessionOpenRouterKey,
+            ttsSettings.language
         );
 
         if (!cognition) throw new Error("Cognitive Link Failed");
@@ -268,35 +249,11 @@ export default function AmadeusApp() {
 
         let rawText = cognition.behavioralResponse.text;
         
-        const neuralMatch = rawText.match(/\[NEURAL:\s*(\{[\s\S]*?\})\]/);
-        if (neuralMatch) {
-            try {
-                const cleanJson = neuralMatch[1].replace(/```json/g, '').replace(/```/g, '');
-                const neuralData = JSON.parse(cleanJson);
-                updatedNeuralNetwork = applyDynamicNeuralUpdate(updatedNeuralNetwork, neuralData);
-                rawText = rawText.replace(neuralMatch[0], '').trim();
-            } catch (e) { console.error("Neural parse error", e); }
-        }
-
-        const stateMatch = rawText.match(/\[STATE:\s*(\{[\s\S]*?\})\s*\]/);
-        if (stateMatch) {
-            try {
-                const cleanJson = stateMatch[1].replace(/```json/g, '').replace(/```/g, '');
-                const stateData = JSON.parse(cleanJson);
-                Object.entries(stateData).forEach(([k, v]) => {
-                    if (currentEmotions.hasOwnProperty(k)) (currentEmotions as any)[k] = Number(v);
-                });
-                rawText = rawText.replace(stateMatch[0], '').trim();
-                playSound('glitch');
-            } catch (e) { console.error("State parse error", e); }
-        }
-
         setCognitiveLogs(prev => [{
             timestamp: Date.now(),
             input: message,
             ...cognition,
             bioOutput: (cognition as any)._biologicalState,
-            neuralUpdate: neuralMatch ? neuralMatch[1] : null 
         }, ...prev].slice(0, 50));
 
         const impact = cognition.behavioralResponse.internalStateUpdate;
@@ -339,7 +296,24 @@ export default function AmadeusApp() {
     } catch (error) { 
         console.error("Cognitive Failure:", error);
         setIsLoading(false); 
-        await simulateTyping("[indifferent] Neural path obstructed. Sync lost. [indifferent]"); 
+        await simulateTyping(ttsSettings.language === 'jp' ? "[sad] ニューラル経路が塞がれています。同期が失われました。 [sad]" : "[sad] Neural path obstructed. Sync lost. [sad]"); 
+    }
+  };
+
+  const handleTranslateMessage = async (messageIndex: number) => {
+    const convo = activeConversation;
+    if (!convo || !sessionApiKey) return;
+    const msg = convo.messages[messageIndex];
+    if (!msg || msg.sender !== Sender.Amadeus) return;
+
+    try {
+        const translation = await translateText(msg.text, sessionApiKey);
+        setConversations(prev => prev.map(c => c.id === convo.id ? {
+            ...c,
+            messages: c.messages.map((m, idx) => idx === messageIndex ? { ...m, translation } : m)
+        } : c));
+    } catch (e) {
+        console.error("Translation failed", e);
     }
   };
 
@@ -367,34 +341,6 @@ export default function AmadeusApp() {
     setCallOverlay(null);
     setIsAvatarMode(true);
   }, [callOverlay, amadeusState, activeConversationId]);
-
-  useEffect(() => {
-    if (!userProfile || activeEnding || !amadeusState || !isClient) return;
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-
-    const resetIdle = () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(() => {
-        const snapshot = loadOfflineSnapshot();
-        if (!snapshot) return;
-        const minutesSinceLast = Math.floor((Date.now() - snapshot.lastTimestamp) / 60000);
-        if (minutesSinceLast < 20) return; 
-        const decision = evaluatePresence({ ...snapshot, lastTimestamp: Date.now() - 20 * 60 * 1000 });
-        if (decision.amadeusWillCall && !callOverlay) {
-          playSound('incoming');
-          setCallOverlay({
-            mode: 'amadeus_calling',
-            mood: decision.callMood,
-            reason: 'IDLE_SIGNAL — User has been quiet',
-            minutesElapsed: minutesSinceLast,
-          });
-        }
-      }, 20 * 60 * 1000); 
-    };
-
-    resetIdle();
-    return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
-  }, [conversations, userProfile, activeEnding, amadeusState, callOverlay, playSound, isClient]);
 
   // Persistent brain sync
   useEffect(() => {
@@ -463,11 +409,11 @@ export default function AmadeusApp() {
             />
           </aside>
           <section className="flex-grow flex flex-col h-full overflow-hidden">
-            <ChatWindow messages={activeConversation?.messages || []} onSendMessage={processAndRespond} onAnalyzeFrame={async () => null} isLoading={isLoading} isWebSearchEnabled={sessionSettings.isWebSearchEnabled} onToggleWebSearch={() => setSessionSettings(prev => ({...prev, isWebSearchEnabled: !prev.isWebSearchEnabled}))} reasoningMode={sessionSettings.reasoningMode} onSetReasoningMode={(m) => setSessionSettings(prev => ({...prev, reasoningMode: m}))} isCannedModeOnly={sessionSettings.isCannedModeOnly} onToggleCannedModeOnly={() => setSessionSettings(prev => ({...prev, isCannedModeOnly: !prev.isCannedModeOnly}))} isAudioLoreMode={sessionSettings.isAudioLoreMode} onToggleAudioLoreMode={() => setSessionSettings(prev => ({...prev, isAudioLoreMode: !prev.isAudioLoreMode}))} isListening={isListening} transcript={transcript} startListening={startListening} stopListening={stopListening} isSupported={isSupported} />
+            <ChatWindow messages={activeConversation?.messages || []} onSendMessage={processAndRespond} onAnalyzeFrame={async () => null} isLoading={isLoading} isWebSearchEnabled={sessionSettings.isWebSearchEnabled} onToggleWebSearch={() => setSessionSettings(prev => ({...prev, isWebSearchEnabled: !prev.isWebSearchEnabled}))} reasoningMode={sessionSettings.reasoningMode} onSetReasoningMode={(m) => setSessionSettings(prev => ({...prev, reasoningMode: m}))} isCannedModeOnly={sessionSettings.isCannedModeOnly} onToggleCannedModeOnly={() => setSessionSettings(prev => ({...prev, isCannedModeOnly: !prev.isCannedModeOnly}))} isAudioLoreMode={sessionSettings.isAudioLoreMode} onToggleAudioLoreMode={() => setSessionSettings(prev => ({...prev, isAudioLoreMode: !prev.isAudioLoreMode}))} isListening={isListening} transcript={transcript} startListening={startListening} stopListening={stopListening} isSupported={isSupported} onTranslateMessage={handleTranslateMessage} language={ttsSettings.language} />
           </section>
         </main>
         <HistoryPanel isOpen={isHistoryOpen} conversations={conversations} activeConversationId={activeConversationId} onNewChat={handleStartNewChat} onSwitchChat={(id) => { setActiveConversationId(id); setIsHistoryOpen(false); }} onDeleteChat={(id) => setConversations(prev => prev.filter(c => c.id !== id))} onClose={() => setIsHistoryOpen(false)} synthesizingId={synthesizingId} onSynthesize={handleSynthesize} />
-        {isAvatarMode && <AvatarView messages={activeConversation?.messages || []} onSendMessage={processAndRespond} isLoading={isLoading} isSpeaking={isSpeaking} isTtsSpeaking={isTtsSpeaking} ttsProgress={ttsProgress} currentTime={currentTime} duration={duration} isGlitching={isGlitching} expression={'normal'} onExit={() => setIsAvatarMode(false)} isListening={isListening} transcript={transcript} startListening={startListening} stopListening={stopListening} playSound={playSound} playTypingSound={() => {}} />}
+        {isAvatarMode && <AvatarView messages={activeConversation?.messages || []} onSendMessage={processAndRespond} isLoading={isLoading} isSpeaking={isSpeaking} isTtsSpeaking={isTtsSpeaking} ttsProgress={ttsProgress} currentTime={currentTime} duration={duration} isGlitching={isGlitching} expression={'normal'} onExit={() => setIsAvatarMode(false)} isListening={isListening} transcript={transcript} startListening={startListening} stopListening={stopListening} playSound={playSound} playTypingSound={() => {}} language={ttsSettings.language} onTranslate={() => activeConversation && handleTranslateMessage(activeConversation.messages.length - 1)} />}
         <audio ref={soundAudioRef} className="hidden" /><audio ref={bgmAudioRef} className="hidden" />
     </div>
   );

@@ -1,6 +1,6 @@
 
 /**
- * AMADEUS UNIFIED COGNITION ENGINE v5.6
+ * AMADEUS UNIFIED COGNITION ENGINE v5.7
  * =========================================
  * Primary Engine: Groq (Llama 3.3 70B Versatile)
  * Secondary Engine: Cohere (OpenRouter)
@@ -66,6 +66,22 @@ async function safe<T>(p: Promise<T>, fb: () => T): Promise<T> {
   try { return (await p) ?? fb(); } catch (e) { return fb(); }
 }
 
+export const translateText = async (text: string, groqKey: string): Promise<string> => {
+    try {
+        const resp = await apiFetch(GROQ_URL, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama-3.1-8b-instant',
+                messages: [{ role: 'system', content: 'Translate the following Japanese text to English. Return ONLY the translated text.' }, { role: 'user', content: text }],
+                temperature: 0.3
+            })
+        });
+        const data = await resp.json();
+        return data.choices[0]?.message?.content || text;
+    } catch (e) { return text; }
+};
+
 export const processFullCognition = async (
   message: string,
   history: Message[],
@@ -74,7 +90,8 @@ export const processFullCognition = async (
   neuralState: NeuralNetworkState,
   imageDataUrl?: string,
   groqKey?: string,
-  openRouterKey?: string
+  openRouterKey?: string,
+  language: 'en' | 'jp' = 'en'
 ) => {
   const primaryKey = groqKey?.trim() || openRouterKey?.trim();
   if (!primaryKey) {
@@ -88,7 +105,6 @@ export const processFullCognition = async (
 
   const keyA = groqKey?.trim() || primaryKey;
 
-  // Clean history for the LLM to prevent recursive tag hallucination
   const chatHistory = history.map(m => ({
     role: m.sender === Sender.User ? 'user' : 'assistant',
     content: m.text.replace(/\[[a-z_:]+[^\]]*\]/gi, '').trim()
@@ -118,16 +134,17 @@ export const processFullCognition = async (
 Current emotional state: ${JSON.stringify(modulatedEmotions)}. 
 Neural context: ${JSON.stringify(activeNodeLabels)}.
 
+${language === 'jp' ? 'YOU MUST RESPOND IN JAPANESE. BUT YOU MUST STILL USE THE ENGLISH EXPRESSION TAGS.' : 'YOU MUST RESPOND IN ENGLISH.'}
+
 Expression Guidelines:
 - You MUST prefix sentences with an expression tag.
 - FRONT-FACING TAGS: [normal], [happy], [sad], [angry], [annoyed], [blush], [disappointed], [indifferent], [pissed], [winking].
-- SIDE-PROFILE TAGS (use these for variety or to indicate looking away/thinking): [side], [thinking], [surprised], [pleasant], [worried], [sided_angry], [sided_blush], [sided_surprised].
+- SIDE-PROFILE TAGS: [side], [thinking], [surprised], [pleasant], [worried], [sided_angry], [sided_blush], [sided_surprised].
 
-Example: "[normal] Greetings. [thinking] I was just analyzing your previous query."`;
+Example: "[normal] ${language === 'jp' ? 'こんにちは。' : 'Greetings.'} [thinking] ${language === 'jp' ? '前のクエリを分析していたところです。' : 'I was just analyzing your previous query.'}"`;
 
   let rawText = '';
 
-  // ── 1. Priority: Groq (Llama 3.3 70B) ──
   if (groqKey?.trim()) {
     try {
       const resp = await apiFetch(GROQ_URL, {
@@ -157,7 +174,6 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
     }
   }
 
-  // ── 2. Fallback: OpenRouter ──
   if (!rawText && openRouterKey?.trim()) {
     for (const modelId of OPENROUTER_MODELS) {
       try {
@@ -196,7 +212,7 @@ Example: "[normal] Greetings. [thinking] I was just analyzing your previous quer
     }
   }
 
-  if (!rawText) rawText = '[sad] ...Neural synchronization error. [sad]';
+  if (!rawText) rawText = language === 'jp' ? '[sad] ...ニューラル同期エラー。 [sad]' : '[sad] ...Neural synchronization error. [sad]';
 
   return {
     thalamus: t, amygdala: am, ofc: o, acc: ac, insula: ins, tpj: tp, limbic: li, hippocampus: hi,

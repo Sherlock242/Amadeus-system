@@ -62,6 +62,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setMusicSettings(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleTtsChange = (field: keyof TtsSettings, value: any) => {
+    setTtsSettings(prev => ({ ...prev, [field]: value }));
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in">
       <div className="bg-neutral-950 border border-amber-500/30 rounded-2xl w-full max-w-lg flex flex-col shadow-[0_0_60px_rgba(0,0,0,1)] max-h-[90vh]">
@@ -103,6 +107,36 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             placeholder="Enter OpenRouter Key..."
                             className="w-full bg-black/50 border border-amber-900/30 rounded-xl py-3 px-4 text-amber-200 outline-none focus:border-amber-500 transition-all font-roboto-mono text-xs"
                         />
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="h-px flex-grow bg-gradient-to-r from-transparent to-cyan-500/30"></div>
+                    <h3 className="text-xs font-orbitron text-cyan-500 tracking-[0.3em] uppercase whitespace-nowrap">Language Matrix</h3>
+                    <div className="h-px flex-grow bg-gradient-to-l from-transparent to-cyan-500/30"></div>
+                </div>
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-cyan-500/5 rounded-xl border border-cyan-500/10">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[11px] font-orbitron text-cyan-400 tracking-widest uppercase">Cognitive Language</span>
+                            <span className="text-[9px] text-slate-500 italic">Toggle English/Japanese simulation</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => handleTtsChange('language', 'en')}
+                                className={`px-4 py-2 rounded-lg font-orbitron text-[10px] tracking-widest transition-all ${ttsSettings.language === 'en' ? 'bg-cyan-500 text-black font-bold' : 'bg-slate-800 text-cyan-500 border border-cyan-500/30'}`}
+                            >
+                                ENGLISH
+                            </button>
+                            <button
+                                onClick={() => handleTtsChange('language', 'jp')}
+                                className={`px-4 py-2 rounded-lg font-orbitron text-[10px] tracking-widest transition-all ${ttsSettings.language === 'jp' ? 'bg-cyan-500 text-black font-bold' : 'bg-slate-800 text-cyan-500 border border-cyan-500/30'}`}
+                            >
+                                JAPANESE
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>

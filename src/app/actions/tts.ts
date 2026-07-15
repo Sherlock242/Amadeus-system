@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -5,10 +6,10 @@
  * Bypasses CORS restrictions by performing the request server-side.
  */
 
-export async function generateFishAudio(text: string) {
+export async function generateFishAudio(text: string, referenceId?: string) {
   // Secured credentials via environment variables
   const API_KEY = process.env.FISH_AUDIO_API_KEY;
-  const REFERENCE_ID = process.env.FISH_AUDIO_REFERENCE_ID;
+  const REFERENCE_ID = referenceId || process.env.FISH_AUDIO_REFERENCE_ID;
 
   try {
     const response = await fetch('https://api.fish.audio/v1/tts', {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -24,6 +25,8 @@ interface AvatarViewProps {
   stopListening: () => void;
   playSound: (name: string) => void;
   playTypingSound: () => void;
+  language?: 'en' | 'jp';
+  onTranslate?: () => void;
 }
 
 const normalizeTag = (raw: string): string =>
@@ -62,7 +65,8 @@ const parseChunks = (message: string): Chunk[] => {
 
 const AvatarView: React.FC<AvatarViewProps> = ({
   messages, onSendMessage, isLoading, isSpeaking, isTtsSpeaking = false,
-  currentTime = 0, duration = 0, isGlitching, onExit, isListening, transcript, startListening, stopListening, playSound
+  currentTime = 0, duration = 0, isGlitching, onExit, isListening, transcript, startListening, stopListening, playSound,
+  language = 'en', onTranslate
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [frameIndex, setFrameIndex] = useState(0);
@@ -98,6 +102,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   
   const lastAmadeusMessage = lastAmadeusMsgObj?.text || '';
   const msgTimestamp = lastAmadeusMsgObj?.timestamp || 0;
+  const translation = lastAmadeusMsgObj?.translation;
   
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
@@ -109,9 +114,9 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  const { displayedText, activeChunk, visibleCharsIndex } = useMemo(() => {
+  const { displayedText, activeChunk, visibleCharsIndex, isComplete } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
-      return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0 };
+      return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0, isComplete: false };
     }
     const progress = Math.min(currentTime / duration, 1);
     const charCount = Math.floor(progress * fullCleanText.length);
@@ -126,7 +131,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         break;
       }
     }
-    return { displayedText: textSoFar, activeChunk: selectedChunk, visibleCharsIndex: charCount };
+    return { displayedText: textSoFar, activeChunk: selectedChunk, visibleCharsIndex: charCount, isComplete: progress >= 0.99 };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
   useEffect(() => {
@@ -140,7 +145,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
     
-    // Switch to sided_talking if she is speaking while in a side profile state
     const isSided = tag.includes('side') || tag === 'thinking';
     if (isTtsSpeaking && isSided) {
         return 'sided_talking';
@@ -257,18 +261,38 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                       </div>
                     </div>
                   ) : (
-                    paragraphs.map((para, idx) => (
-                      <p key={idx} className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
-                        {para}
-                        {idx === paragraphs.length - 1 && isTtsSpeaking && (
-                          <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
-                        )}
-                      </p>
-                    ))
+                    <>
+                      {paragraphs.map((para, idx) => (
+                        <p key={idx} className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
+                          {para}
+                          {idx === paragraphs.length - 1 && isTtsSpeaking && (
+                            <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
+                          )}
+                        </p>
+                      ))}
+                      {translation && (
+                        <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-fade-in">
+                          <span className="text-[8px] font-orbitron text-amber-500/60 uppercase tracking-widest block mb-2">Translation</span>
+                          <p className="text-amber-200/80 text-sm italic leading-relaxed">
+                            {translation}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
-                  <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'THINKING' : 'STABLE'}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'THINKING' : 'STABLE'}</span>
+                    {!isLoading && isComplete && language === 'jp' && !translation && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onTranslate?.(); }}
+                        className="text-[9px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest border border-cyan-400/30 px-2 py-0.5 rounded bg-cyan-400/10"
+                      >
+                        Translate to English
+                      </button>
+                    )}
+                  </div>
                   <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag || 'normal'}</span>
                 </div>
               </div>

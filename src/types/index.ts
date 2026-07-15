@@ -83,6 +83,7 @@ export interface PFCAnalysis {
 export interface Message {
   sender: Sender;
   text: string;
+  translation?: string;
   image?: string;
   timestamp?: number;
   emotionalState?: EmotionalStateValues;
@@ -210,6 +211,7 @@ export interface SessionSettings {
 
 export interface TtsSettings {
   engine: 'disabled' | 'browser' | 'elevenlabs' | 'gpt-sovits';
+  language: 'en' | 'jp';
   browserVoiceURI: string | null;
   browserPitch: number;
   browserRate: number;

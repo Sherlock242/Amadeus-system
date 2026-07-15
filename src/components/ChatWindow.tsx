@@ -23,6 +23,8 @@ interface ChatWindowProps {
   startListening: () => void;
   stopListening: () => void;
   isSupported: boolean;
+  onTranslateMessage?: (index: number) => void;
+  language?: 'en' | 'jp';
 }
 
 const TypingIndicator: React.FC = () => (
@@ -41,17 +43,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     isWebSearchEnabled, onToggleWebSearch, reasoningMode, onSetReasoningMode, 
     isCannedModeOnly, onToggleCannedModeOnly, isAudioLoreMode, onToggleAudioLoreMode,
     isListening, transcript, 
-    startListening, stopListening, isSupported 
+    startListening, stopListening, isSupported,
+    onTranslateMessage, language = 'en'
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [image, setImage] = useState<string | null>(null);
-  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-  const [isContinuousAnalysis, setIsContinuousAnalysis] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const analysisIntervalRef = useRef<any>(null);
   
   const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); };
   useEffect(() => { scrollToBottom(); }, [messages, isLoading]);
@@ -59,13 +57,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     if (transcript) setInputValue(prev => prev ? `${prev.trim()} ${transcript}` : transcript);
   }, [transcript]);
-
-  useEffect(() => {
-    return () => {
-        streamRef.current?.getTracks().forEach(track => track.stop());
-        if (analysisIntervalRef.current) clearInterval(analysisIntervalRef.current);
-    }
-  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); if (isLoading) return;
@@ -93,9 +84,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
               ) : (
                 <div className={`flex flex-col ${msg.text.startsWith('*') ? 'w-full items-center' : ''}`}>
-                  {!msg.text.startsWith('*') && <span className="text-xs text-amber-400 font-roboto-mono uppercase tracking-wider ml-3 mb-1">Makise Kurisu</span>}
+                  {!msg.text.startsWith('*') && (
+                    <div className="flex items-center gap-3 ml-3 mb-1">
+                      <span className="text-xs text-amber-400 font-roboto-mono uppercase tracking-wider">Makise Kurisu</span>
+                      {language === 'jp' && !msg.translation && (
+                        <button 
+                          onClick={() => onTranslateMessage?.(index)}
+                          className="text-[9px] text-cyan-400 hover:text-cyan-300 font-bold uppercase transition-all tracking-tighter"
+                        >
+                          [Translate]
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div className={`rounded-lg px-4 py-2 text-white ${msg.text.startsWith('*') ? 'bg-transparent text-amber-400/80 italic text-sm' : 'bg-amber-800/50 chat-bubble prose prose-invert prose-p:my-0'}`}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanMessageText(msg.text, msg.sender)}</ReactMarkdown>
+                    {msg.translation && (
+                      <div className="mt-2 pt-2 border-t border-white/10 text-slate-300 italic text-xs leading-relaxed">
+                        {msg.translation}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
