@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -40,6 +41,7 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
   const c = char.toLowerCase();
   
   // Independent Japanese Engine (High-speed syllable transitions)
+  // Optimized for 60fps (16ms) sampling
   if (language === 'jp') {
     if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
     if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
@@ -51,12 +53,14 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
   } 
   
   // Independent English Engine (Cinematic cadence)
-  // Perfectly handles punctuation pauses and distinct Latin vowels
-  const englishPunctuation = " .,!?;:()[]_-\n\t'\"`";
-  if (englishPunctuation.includes(c)) return 0;
+  // Optimized for 24fps (41ms) sampling
+  // PERFECT PUNCTUATION STOP: Ensures mouth closes at pauses
+  const englishPunctuation = ".,!?;:()[]_-\n\t'\"` "; 
+  if (englishPunctuation.indexOf(c) !== -1) return 0;
   
-  if (/[aeo]/.test(c)) return 2; // Open/Wide vowels
-  if (/[iuy]/.test(c)) return 1; // Narrow/Mid vowels
+  // Vowel-specific visemes
+  if (/[aou]/.test(c)) return 2; // Open/Wide vowels
+  if (/[eiy]/.test(c)) return 1; // Narrow/Mid vowels
   
   return isShouting ? 2 : 1;
 };
@@ -166,7 +170,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     const tag = normalizeTag(activeChunk.tag);
     
     // STRICT ORIENTATION DETECTION
-    // Identifies if we should be using profile-head frames.
     const isProfileBase = tag.includes('sided_') || 
                          ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
     
@@ -175,17 +178,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
-    // Lock 'sided_' tags and profile aliases to side-blink asset.
-    // 'side' (eyes-aside) remains a front-facing head per user requirement.
+    // side tag remains front-facing head per requirement
     return avatarState.includes('sided_') || 
            ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState]);
 
   useEffect(() => {
     const now = Date.now();
-    // STRICT FPS SEPARATION
-    // Japanese voice: 60fps (16ms)
-    // English voice: 24fps (41ms)
+    // FPS SEPARATION: 16ms (JP) / 41ms (EN)
     const frameInterval = language === 'jp' ? 16 : 41; 
     
     if (now - lastMouthUpdate.current < frameInterval) return;
@@ -195,13 +195,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     
-    const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
+    // Sample char precisely
+    const currentChar = fullCleanText[Math.max(0, visibleCharsIndex - 1)] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
-    // Micro-jitter for biological realism
-    if (targetFrame > 0 && Math.random() > 0.8) {
+    // Jitter for life-like movement
+    if (targetFrame > 0 && Math.random() > 0.85) {
       targetFrame = targetFrame === 2 ? 1 : 2;
     }
 
