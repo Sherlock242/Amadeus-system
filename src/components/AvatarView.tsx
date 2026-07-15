@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -158,6 +157,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
+    // Modified: Ensure side-profile talking asset is used when speaking
     const isProfileHead = ['thinking', 'worried', 'sided_talking'].includes(tag) || tag.startsWith('sided_');
     if (isTtsSpeaking && isProfileHead) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
@@ -165,7 +165,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   useEffect(() => {
     const now = Date.now();
-    if (now - lastMouthUpdate.current < 16) return;
+    // Dynamic FPS: 60fps (16ms) for Japanese, 24fps (41ms) for English
+    const frameInterval = language === 'jp' ? 16 : 41;
+    if (now - lastMouthUpdate.current < frameInterval) return;
+    
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
       setFrameIndex(0); return;
     }
@@ -184,7 +187,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
     lastMouthUpdate.current = now;
-  }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText]);
+  }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText, language]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
   const currentImage = currentFrames[frameIndex % currentFrames.length];
