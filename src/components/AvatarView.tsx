@@ -239,17 +239,11 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   return (
     <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}>
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="auto"
-        poster="/images/background.jpeg"
-        className="absolute inset-0 w-full h-full object-cover z-0"
-      >
-        <source src="/background.mp4" type="video/mp4" />
-      </video>
+      <img 
+        src="/images/background.jpeg" 
+        alt="Background" 
+        className="absolute inset-0 w-full h-full object-cover z-0" 
+      />
 
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
