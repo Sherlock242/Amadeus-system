@@ -340,6 +340,7 @@ export default function AmadeusApp() {
     }
     setCallOverlay(null);
     setIsAvatarMode(true);
+    setIsMobileMenuOpen(false);
   }, [callOverlay, amadeusState, activeConversationId]);
 
   // Persistent brain sync
@@ -382,7 +383,7 @@ export default function AmadeusApp() {
         {isKurisuProfileOpen && <KurisuProfilePanel onClose={() => setIsKurisuProfileOpen(false)} />}
         {isMemoriesOpen && <MemoryArchivePanel isOpen={isMemoriesOpen} memories={memories} onClose={() => setIsMemoriesOpen(false)} />}
         {isAboutOpen && <AboutPanel onClose={() => setIsAboutOpen(false)} />}
-        {isMobileMenuOpen && <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} onOpenAbout={() => setIsAboutOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} onOpenMemories={() => setIsMemoriesOpen(true)} onOpenKurisuProfile={() => setIsKurisuProfileOpen(true)} onToggleHistory={() => setIsHistoryOpen(true)} onNewChat={handleStartNewChat} isMusicPlaying={musicSettings.isPlaying} isMusicLoaded={musicSettings.selectedTrack !== 'none'} onToggleMusic={handleToggleMusic} onUploadMusic={() => {}} onViewAvatar={() => setIsAvatarMode(true)} onOpenLogs={() => setIsLogsOpen(true)} />}
+        {isMobileMenuOpen && <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} onOpenAbout={() => setIsAboutOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} onOpenMemories={() => setIsMemoriesOpen(true)} onOpenKurisuProfile={() => setIsKurisuProfileOpen(true)} onToggleHistory={() => setIsHistoryOpen(true)} onNewChat={handleStartNewChat} isMusicPlaying={musicSettings.isPlaying} isMusicLoaded={musicSettings.selectedTrack !== 'none'} onToggleMusic={handleToggleMusic} onUploadMusic={() => {}} onViewAvatar={() => { setIsAvatarMode(true); setIsMobileMenuOpen(false); }} onOpenLogs={() => setIsLogsOpen(true)} />}
         <TopBar onToggleHistory={() => setIsHistoryOpen(!isHistoryOpen)} onToggleMobileMenu={() => setIsMobileMenuOpen(true)} title={activeConversation?.title || "Amadeus System"} onExport={() => {}} onImport={() => {}} onOpenLogs={() => setIsLogsOpen(true)} />
         <main className="flex-grow flex flex-col lg:flex-row gap-4 overflow-hidden">
           <aside className="hidden lg:flex flex-col w-full lg:max-w-sm h-full overflow-y-auto pr-2">
@@ -400,7 +401,7 @@ export default function AmadeusApp() {
               isMusicLoaded={musicSettings.selectedTrack !== 'none'} 
               onToggleMusic={handleToggleMusic} 
               onUploadMusic={() => {}} 
-              onViewAvatar={() => setIsAvatarMode(true)} 
+              onViewAvatar={() => { setIsAvatarMode(true); setIsMobileMenuOpen(false); }} 
               isGlitching={isGlitching} 
               isSpeaking={isSpeaking}
               isTtsSpeaking={isTtsSpeaking}

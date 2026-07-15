@@ -32,38 +32,17 @@ interface AvatarViewProps {
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '');
 
-/**
- * High-precision Viseme Mapping for Japanese and English
- * Mapped to 3-frame sequence: [0: Closed, 1: Half-Open, 2: Fully Open]
- */
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  
-  // Punctuation and whitespace = Closed
   if (" .,!?;:()[]_-\n\t「」。、！？".includes(c)) return 0; 
-  
-  // Japanese Vowel-based Mapping (Hiragana/Katakana)
-  // 'a' sounds (あ, か, さ...) & 'e' sounds (え, け, せ...) = Wide Open (Frame 2)
-  if (/[あかさたなはまやらわえけせてねへめれアカサタナハマヤラワエケセテネヘメレ]/.test(c)) {
-    return isShouting ? 2 : 2; 
-  }
-  // 'i', 'u', 'o' sounds = Half-Open (Frame 1)
-  if (/[いきしちにひみりうくすつぬふむゆるおこそとのほもよろイキシチニヒミリウクスツヌフMLオコソトノホモヨロ]/.test(c)) {
-    return isShouting ? 2 : 1;
-  }
-  // 'n' sound (ん) = Closed (Frame 0)
+  if (/[あかさたなはまやらわえけせてねへめれアカサタナハマヤラワエケセテネヘメレ]/.test(c)) return 2; 
+  if (/[いきしちにひみりうくすつぬふむゆるおこそとのほもよろイキシチニヒミリウクスツヌフMLオコソトノホモヨロ]/.test(c)) return 1;
   if (/[んン]/.test(c)) return 0;
-
-  // English/Latin Vowels
   if ('ae'.includes(c)) return 2;
   if ('ouıiöü'.includes(c)) return 1;
-
-  // Generic Kanji / Consonant fallback
   const isJapanese = /[\u4e00-\u9faf]/.test(c);
-  if (isJapanese) return 1;
-
-  return 1;
+  return isJapanese ? 1 : 1;
 };
 
 interface Chunk { tag: string; text: string; }
@@ -101,16 +80,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Preload expressions
   useEffect(() => {
     Object.values(kurisuExpressions).flat().forEach(src => { 
       const img = new Image(); img.src = src; 
     });
     new Image().src = '/images/kurisu_blink.png';
     new Image().src = '/images/kurisu_side_blink.png';
+    new Image().src = '/images/background.jpeg';
   }, []);
 
-  // Blinking logic
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -134,7 +112,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  // Audio start sound
   useEffect(() => {
     if (isLoading) { hasPlayedRef.current = false; return; }
     if (!hasPlayedRef.current && lastAmadeusMessage.length > 0) {
@@ -142,7 +119,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Unified text reveal linked to audio progress
   const { displayedText, activeChunk, visibleCharsIndex, isComplete } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0, isComplete: false };
@@ -169,37 +145,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [displayedText, isLoading]);
 
-  // Determine Sprite State
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
-    
-    // Check if current tag orientation is profile head
     const isProfileHead = ['thinking', 'worried', 'sided_talking'].includes(tag) || tag.startsWith('sided_');
-
-    // Adaptive switch to talking sprite if voice is active in profile view
-    if (isTtsSpeaking && isProfileHead) {
-      return 'sided_talking';
-    }
-    
+    if (isTtsSpeaking && isProfileHead) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
-  // Precise Lip-Sync Frame Selection
   useEffect(() => {
     const now = Date.now();
-    // Reduce throttle to 16ms (approx 60fps) for precise high-speed lip-sync
     if (now - lastMouthUpdate.current < 16) return;
-
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
       setFrameIndex(0); return;
     }
-
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
-    
     const targetFrame = getMouthFrame(currentChar, isShouting);
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
     lastMouthUpdate.current = now;
@@ -227,7 +190,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
-  // Orientation-specific Blinking
   const blinkAsset = imgSrc.includes('sided_') ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
   const paragraphs = useMemo(() => {
@@ -240,24 +202,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [displayedText]);
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}
-    >
+    <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}>
       <video
         autoPlay
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover"
+        preload="auto"
+        poster="/images/background.jpeg"
+        className="absolute inset-0 w-full h-full object-cover z-0"
       >
         <source src="/background.mp4" type="video/mp4" />
       </video>
 
+      <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
+
       <div className="hidden pointer-events-none" aria-hidden="true">
         {currentFrames.map((frame, i) => <img key={`${avatarState}-${i}`} src={frame} alt="" />)}
       </div>
-
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.5)_100%)] pointer-events-none" />
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -265,7 +227,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         </svg>
       </button>
 
-      <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none">
+      <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none z-10">
         <div className="relative h-full flex items-end justify-center animate-sway transform-gpu w-full max-w-4xl">
           <div className="relative h-full flex items-end justify-center">
             <img 
