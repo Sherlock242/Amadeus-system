@@ -35,10 +35,23 @@ const normalizeTag = (raw: string): string =>
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  if (" .,!?;:()[]_-\n\t".includes(c)) return 0; 
+  
+  // Silent characters (including Japanese punctuation)
+  if (" .,!?;:()[]_-\n\t「」。、！？".includes(c)) return 0; 
+  
+  // English/Turkish Vowels
   if ('aeouıiöü'.includes(c)) return isShouting ? 2 : 1;
+  
+  // Japanese Characters (Hiragana, Katakana, Kanji)
+  // Most Japanese characters are syllables ending in vowels, so they trigger mouth movement.
+  const isJapanese = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(c);
+  if (isJapanese) return isShouting ? 2 : 1;
+
+  // Consonants
   if ('rstlnkyzhvgdcçş'.includes(c)) return 1;
-  return 0;
+  
+  // Default for any other non-silent character
+  return 1;
 };
 
 interface Chunk { tag: string; text: string; }
@@ -145,11 +158,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
     
-    const isSided = tag.includes('side') || tag === 'thinking';
-    if (isTtsSpeaking && isSided) {
-        return 'sided_talking';
+    // Check if the current orientation is a side profile head view
+    const isProfileHead = ['thinking', 'worried', 'sided_talking'].includes(tag) || tag.startsWith('sided_');
+
+    // If talking in any profile-based head view, use the profile talking asset
+    if (isTtsSpeaking && isProfileHead) {
+      return 'sided_talking';
     }
     
+    // Otherwise return the tag or normal
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
@@ -208,13 +225,22 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   return (
     <div 
       className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}
-      style={{ backgroundImage: 'url(/images/background.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
     >
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover"
+      >
+        <source src="/background.mp4" type="video/mp4" />
+      </video>
+
       <div className="hidden pointer-events-none" aria-hidden="true">
         {currentFrames.map((frame, i) => <img key={`${avatarState}-${i}`} src={frame} alt="" />)}
       </div>
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.6)_100%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.5)_100%)] pointer-events-none" />
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
