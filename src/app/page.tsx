@@ -157,7 +157,7 @@ export default function AmadeusApp() {
     const startingEmotions = { ...personalitySettings.initialEmotionalState };
     const newConvo: Conversation = {
       id: newId, title: "Neural Sync " + newId.slice(-4),
-      messages: [{ sender: Sender.Amadeus, text: "[normal] Connection established. Amadeus System online. [normal]", timestamp: Date.now(), emotionalState: startingEmotions }],
+      messages: [{ sender: Sender.Amadeus, text: ttsSettings.language === 'jp' ? "[normal] 接続が確立されました。アマデウスシステム、オンライン。 [normal]" : "[normal] Connection established. Amadeus System online. [normal]", timestamp: Date.now(), emotionalState: startingEmotions }],
       lastUpdated: Date.now(),
       amadeusState: { 
         shortTermMemory: {}, 
@@ -168,7 +168,7 @@ export default function AmadeusApp() {
       },
     };
     setConversations(prev => [newConvo, ...prev]); setActiveConversationId(newId); setIsHistoryOpen(false); playSound('hello');
-  }, [personalitySettings.initialEmotionalState, playSound]);
+  }, [personalitySettings.initialEmotionalState, playSound, ttsSettings.language]);
 
   const handleLoginSuccess = async (profile: UserProfile, apiKey: string, openRouterKey?: string) => {
     const brain = await dbService.loadBrain(profile.name);
@@ -213,7 +213,6 @@ export default function AmadeusApp() {
     setIsSpeaking(false);
     if (ttsSettings.engine !== 'disabled') {
         const speakableText = cleanDisplay.replace(/\[[a-z_:]+[^\]]*\]/g, '').trim();
-        // Use Japanese Reference ID if language is jp
         const referenceId = ttsSettings.language === 'jp' ? '0ec9e84ba69b4f15ab3b52ac542b6693' : undefined;
         speak(speakableText, { ...ttsSettings, elevenLabsVoiceId: referenceId || '' });
     }

@@ -32,26 +32,39 @@ interface AvatarViewProps {
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '');
 
-const getMouthFrame = (char: string, isShouting = false): number => {
+const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
-  // 1. Silent / Pause characters
-  if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
+  if (language === 'jp') {
+    // 1. Silent / Pause characters (Japanese specific)
+    if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
 
-  // 2. Wide Open (A, O columns + Shouting)
-  if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
-  if ('ao'.includes(c)) return 2;
+    // 2. Wide Open (A, O columns + Shouting)
+    if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
+    if ('ao'.includes(c)) return 2;
 
-  // 3. Half Open (I, U, E columns)
-  if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエケセテネヘメレ]/.test(c)) return 1;
-  if ('iue'.includes(c)) return 1;
+    // 3. Half Open (I, U, E columns)
+    if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエケセテネヘメレ]/.test(c)) return 1;
+    if ('iue'.includes(c)) return 1;
 
-  // 4. Closed (N)
-  if (/[んン]/.test(c)) return 0;
+    // 4. Closed (N)
+    if (/[んン]/.test(c)) return 0;
+    
+    return isShouting ? 2 : 1;
+  } else {
+    // 1. Silent / Pause characters (English specific)
+    if (" .,!?;:()[]_-\n\t".includes(c)) return 0;
 
-  // 5. Default talking frame for consonants/kanji
-  return isShouting ? 2 : 1;
+    // 2. Wide Open (A, E, O + Shouting)
+    if (/[aeo]/.test(c)) return 2;
+
+    // 3. Half Open (I, U, Y)
+    if (/[iuy]/.test(c)) return 1;
+
+    // 4. Default for consonants
+    return isShouting ? 2 : 1;
+  }
 };
 
 interface Chunk { tag: string; text: string; }
@@ -158,24 +171,18 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
-    
-    // Strict Orientation Logic: Determine if we are in a profile view
-    // 'side' is front-facing (eyes side), but 'thinking', 'worried', and 'sided_' are profile.
     const isProfileBase = tag.startsWith('sided_') || ['thinking', 'worried'].includes(tag);
-    
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
-  // Orientation Check for Blinking and strict mapping
   const isProfileView = useMemo(() => {
     return avatarState.startsWith('sided_') || ['thinking', 'worried'].includes(avatarState);
   }, [avatarState]);
 
   useEffect(() => {
     const now = Date.now();
-    // Dynamic FPS: 60fps (16ms) for Japanese, 24fps (41ms) for English
-    const frameInterval = language === 'jp' ? 16 : 41;
+    const frameInterval = language === 'jp' ? 16 : 41; // 60fps for JP, 24fps for EN
     if (now - lastMouthUpdate.current < frameInterval) return;
     
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
@@ -186,9 +193,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
-    let targetFrame = getMouthFrame(currentChar, isShouting);
+    let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
-    // Add micro-jitter if the character is sustained to prevent "dead face"
     if (targetFrame > 0 && Math.random() > 0.8) {
       targetFrame = targetFrame === 2 ? 1 : 2;
     }
@@ -219,17 +225,17 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   };
 
-  // Strict Sync: Only use side_blink if we are actually in a profile view
   const blinkAsset = isProfileView ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
   const paragraphs = useMemo(() => {
-    const words = displayedText.split(' ');
+    const words = language === 'jp' ? displayedText.split('') : displayedText.split(' ');
     const result: string[] = [];
-    for (let i = 0; i < words.length; i += 100) {
-      result.push(words.slice(i, i + 100).join(' '));
+    const chunkSize = language === 'jp' ? 150 : 100;
+    for (let i = 0; i < words.length; i += chunkSize) {
+      result.push(words.slice(i, i + chunkSize).join(language === 'jp' ? '' : ' '));
     }
     return result;
-  }, [displayedText]);
+  }, [displayedText, language]);
 
   return (
     <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}>
@@ -313,20 +319,20 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                           </p>
                         </div>
                       )}
+                      {!isLoading && isComplete && language === 'jp' && !translation && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onTranslate?.(); }}
+                          className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit"
+                        >
+                          Translate to English
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
                   <div className="flex items-center gap-4">
                     <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'THINKING' : 'STABLE'}</span>
-                    {!isLoading && isComplete && language === 'jp' && !translation && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); onTranslate?.(); }}
-                        className="text-[9px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest border border-cyan-400/30 px-2 py-0.5 rounded bg-cyan-400/10"
-                      >
-                        Translate to English
-                      </button>
-                    )}
                   </div>
                   <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag || 'normal'}</span>
                 </div>

@@ -85,7 +85,7 @@ export interface Message {
   text: string;
   translation?: string;
   image?: string;
-  timestamp?: number;
+  timestamp: number;
   emotionalState?: EmotionalStateValues;
 }
 
