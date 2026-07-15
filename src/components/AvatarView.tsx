@@ -36,32 +36,17 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
   const c = char.toLowerCase();
   
   if (language === 'jp') {
-    // 1. Silent / Pause characters (Japanese specific)
     if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
-
-    // 2. Wide Open (A, O columns + Shouting)
     if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
     if ('ao'.includes(c)) return 2;
-
-    // 3. Half Open (I, U, E columns)
-    if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエケセテネヘメレ]/.test(c)) return 1;
+    if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエKEセテネヘメレ]/.test(c)) return 1;
     if ('iue'.includes(c)) return 1;
-
-    // 4. Closed (N)
     if (/[んン]/.test(c)) return 0;
-    
     return isShouting ? 2 : 1;
   } else {
-    // 1. Silent / Pause characters (English specific)
     if (" .,!?;:()[]_-\n\t".includes(c)) return 0;
-
-    // 2. Wide Open (A, E, O + Shouting)
     if (/[aeo]/.test(c)) return 2;
-
-    // 3. Half Open (I, U, Y)
     if (/[iuy]/.test(c)) return 1;
-
-    // 4. Default for consonants
     return isShouting ? 2 : 1;
   }
 };
@@ -107,7 +92,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     });
     new Image().src = '/images/kurisu_blink.png';
     new Image().src = '/images/kurisu_side_blink.png';
-    new Image().src = '/images/background.jpeg';
   }, []);
 
   useEffect(() => {
@@ -171,23 +155,26 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
     
-    // Explicit list of profile orientations for asset locking based on user screenshot
-    const isProfileBase = tag.includes('side') || 
-                         ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
+    // Lock 'side' tag to front head. Other sided tags and thinking/surprised/etc are profile views.
+    const isProfileBase = (tag.includes('side') || 
+                         ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag)) &&
+                         tag !== 'side';
     
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
-    // Strictly lock all side or sided images to kurisu_side_blink.png
-    return avatarState.includes('side') || 
-           ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
+    // Strictly lock all 'sideD' or alias images to kurisu_side_blink.png.
+    // 'side' (kurisu_side1,2,3) is a front-facing head orientation.
+    return (avatarState.includes('side') || 
+           ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState)) && 
+           avatarState !== 'side';
   }, [avatarState]);
 
   useEffect(() => {
     const now = Date.now();
-    const frameInterval = language === 'jp' ? 16 : 41; // 60fps for JP, 24fps for EN
+    const frameInterval = language === 'jp' ? 16 : 41; 
     if (now - lastMouthUpdate.current < frameInterval) return;
     
     if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
