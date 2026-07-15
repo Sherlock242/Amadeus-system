@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -30,7 +29,7 @@ interface AvatarViewProps {
 }
 
 const normalizeTag = (raw: string): string =>
-  raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '');
+  raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
 
 const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
   if (!char) return 0;
@@ -171,13 +170,19 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
-    const isProfileBase = tag.startsWith('sided_') || ['thinking', 'worried'].includes(tag);
+    
+    // Explicit list of profile orientations for asset locking based on user screenshot
+    const isProfileBase = tag.includes('side') || 
+                         ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
+    
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
-    return avatarState.startsWith('sided_') || ['thinking', 'worried'].includes(avatarState);
+    // Strictly lock all side or sided images to kurisu_side_blink.png
+    return avatarState.includes('side') || 
+           ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState]);
 
   useEffect(() => {
