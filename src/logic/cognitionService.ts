@@ -134,7 +134,10 @@ export const processFullCognition = async (
 Current emotional state: ${JSON.stringify(modulatedEmotions)}. 
 Neural context: ${JSON.stringify(activeNodeLabels)}.
 
-${language === 'jp' ? 'YOU MUST RESPOND IN JAPANESE. BUT YOU MUST STILL USE THE ENGLISH EXPRESSION TAGS.' : 'YOU MUST RESPOND IN ENGLISH.'}
+MANDATORY LANGUAGE RULE: 
+- Regardless of the language used in the provided chat history or memory logs, you MUST respond ONLY in ${language === 'jp' ? 'JAPANESE' : 'ENGLISH'}.
+- Do NOT match the language of the user if it differs from the mandatory language rule.
+- Do NOT continue the language used in previous messages if a switch has occurred.
 
 Expression Guidelines:
 - You MUST prefix sentences with an expression tag.
