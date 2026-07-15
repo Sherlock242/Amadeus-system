@@ -35,14 +35,23 @@ const normalizeTag = (raw: string): string =>
 const getMouthFrame = (char: string, isShouting = false): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  if (" .,!?;:()[]_-\n\t「」。、！？".includes(c)) return 0; 
-  if (/[あかさたなはまやらわえけせてねへめれアカサタナハマヤラワエケセテネヘメレ]/.test(c)) return 2; 
-  if (/[いきしちにひみりうくすつぬふむゆるおこそとのほもよろイキシチニヒミリウクスツヌフMLオコソトノホモヨロ]/.test(c)) return 1;
+  
+  // 1. Silent / Pause characters
+  if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
+
+  // 2. Wide Open (A, O columns + Shouting)
+  if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
+  if ('ao'.includes(c)) return 2;
+
+  // 3. Half Open (I, U, E columns)
+  if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエケセテネヘメレ]/.test(c)) return 1;
+  if ('iue'.includes(c)) return 1;
+
+  // 4. Closed (N)
   if (/[んン]/.test(c)) return 0;
-  if ('ae'.includes(c)) return 2;
-  if ('ouıiöü'.includes(c)) return 1;
-  const isJapanese = /[\u4e00-\u9faf]/.test(c);
-  return isJapanese ? 1 : 1;
+
+  // 5. Default talking frame for consonants/kanji
+  return isShouting ? 2 : 1;
 };
 
 interface Chunk { tag: string; text: string; }
@@ -161,9 +170,18 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       setFrameIndex(0); return;
     }
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
+    
+    // Snappy Sample: We look at the exact character currently being "spoken"
     const currentChar = fullCleanText[visibleCharsIndex] || fullCleanText[visibleCharsIndex - 1] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
-    const targetFrame = getMouthFrame(currentChar, isShouting);
+    
+    let targetFrame = getMouthFrame(currentChar, isShouting);
+    
+    // Add micro-jitter if the character is sustained to prevent "dead face"
+    if (targetFrame > 0 && Math.random() > 0.8) {
+      targetFrame = targetFrame === 2 ? 1 : 2;
+    }
+
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
     lastMouthUpdate.current = now;
   }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText]);
