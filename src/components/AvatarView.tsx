@@ -46,27 +46,18 @@ const EN_2_OPEN   = "aow";   // Wide/Rounded vowels
 const getProfessionalVisemeFrame = (text: string, index: number, language: 'en' | 'jp'): number => {
   if (!text || index < 0 || index >= text.length) return 0;
   
-  // Professional Look-Ahead (2 characters)
-  // Anticipates stops and bilabials to match audio decay/prep
-  for (let i = 0; i <= 2; i++) {
-    const lookIdx = index + i;
-    if (lookIdx < text.length) {
-      const char = text[lookIdx].toLowerCase();
-      if (language === 'en') {
-        if (EN_STOPS.includes(char) || EN_BILABIAL.includes(char)) return 0;
-      } else {
-        if (JP_0_CLOSED.includes(char)) return 0;
-      }
-    }
-  }
+  const char = text[index].toLowerCase();
 
-  const c = text[index].toLowerCase();
-  if (language === 'jp') {
-    if (JP_2_OPEN.includes(c)) return 2;
+  if (language === 'en') {
+    // Current character triggers
+    if (EN_STOPS.includes(char) || EN_BILABIAL.includes(char)) return 0;
+    if (EN_2_OPEN.includes(char)) return 2;
     return 1; // Default to half-open
   } else {
-    if (EN_2_OPEN.includes(c)) return 2;
-    return 1; // Default to half-open (covers E, I, U, Y and other consonants)
+    // Current character triggers
+    if (JP_0_CLOSED.includes(char)) return 0;
+    if (JP_2_OPEN.includes(char)) return 2;
+    return 1; // Default to half-open
   }
 };
 
