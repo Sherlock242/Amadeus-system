@@ -29,7 +29,7 @@ interface AvatarViewProps {
 }
 
 /**
- * ENGLISH PHONETIC ENGINE
+ * ENGLISH PHONETIC ENGINE (Strictly Isolated)
  * Frame 0: Closed (Punctuation, Spaces, M/P/B Bilabials)
  * Frame 1: Half-Open (Narrow vowels, Consonants)
  * Frame 2: Wide-Open (A, O, W Wide energy states)
@@ -45,7 +45,7 @@ const processEnglishPhonetics = (char: string): number => {
 };
 
 /**
- * JAPANESE PHONETIC ENGINE
+ * JAPANESE PHONETIC ENGINE (Strictly Isolated)
  * High-precision mapping for Kana syllables.
  */
 const processJapanesePhonetics = (char: string): number => {
@@ -60,8 +60,8 @@ const processJapanesePhonetics = (char: string): number => {
 };
 
 /**
- * TEMPORAL MAPPING CONSTANTS (User Provided Cheat Sheets)
- * Adjusted -25% for Anime/Fast cadence.
+ * TEMPORAL MAPPING CONSTANTS (Professional Cadence)
+ * Adjusted -25% for Anime/Fast cadence as requested.
  */
 const ENGLISH_PAUSE_WEIGHTS: Record<string, number> = {
   '.': 650, '?': 650, ',': 250, ';': 450, ':': 500, '!': 550, '\n': 1250,
@@ -109,7 +109,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // LANGUAGE-SPECIFIC FPS SETTINGS
+  // FPS Settings: 64 for JP, 24 for EN
   const FPS = language === 'jp' ? 64 : 24;
 
   useEffect(() => {
@@ -135,7 +135,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  // UNIFIED TEMPORAL MAP GENERATOR (Professional Cadence Injection)
+  // Unified Temporal Map Generator
   const temporalMap = useMemo(() => {
     if (!fullCleanText || duration === 0) return null;
 
@@ -157,13 +157,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     });
   }, [fullCleanText, duration, language]);
 
-  // HIGH-PRECISION SYNC LOGIC
+  // Sync Logic
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0 || currentTime === 0 || !temporalMap) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
     }
 
-    // Binary search for the current character slot based on high-frequency clock
     const found = temporalMap.findIndex(slot => slot.endTime >= currentTime);
     const currentIndex = found === -1 ? fullCleanText.length : found;
     const charSafe = Math.min(currentIndex, fullCleanText.length - 1);
@@ -186,11 +185,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [displayedText, isLoading]);
 
   const avatarState = useMemo(() => {
+    // Expression changes are strictly gated until audio starts
     if (currentTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
 
     const tag = normalizeTag(activeChunk.tag);
+    // Profile logic: thinking, surprised, pleasant, and talking are side-view
     const isProfileBase = tag.startsWith('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     
     if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
@@ -199,7 +200,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    // 'side' is strictly front-facing per instruction
+    // 'side' is strictly front-facing per instruction (front side eye images) and must use kurisu_blink.png
     return (state.startsWith('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state)) && state !== 'side';
   }, [avatarState]);
 
@@ -211,7 +212,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
     const char = fullCleanText[charIndex] || '';
     
-    // Sampling logic locked to selected engine with 0 mix coding
+    // Viseme logic - strictly separated by language
     if (language === 'jp') {
       setFrameIndex(processJapanesePhonetics(char));
     } else {
@@ -239,6 +240,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (inputValue.trim() && !isLoading) { onSendMessage(inputValue.trim()); setInputValue(''); }
   };
 
+  // kurisu_blink.png is strictly locked to all front images (non-profile views)
   const blinkAsset = isProfileView ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
   return (
@@ -246,7 +248,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* GPU READY PRE-DECODING CONTAINER (0 LAG SYSTEM) */}
+      {/* Aggressive GPU Pre-Decoding Container */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
