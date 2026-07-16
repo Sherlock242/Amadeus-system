@@ -29,8 +29,8 @@ interface AvatarViewProps {
 }
 
 /**
- * ISOLATED ENGLISH PHONETIC ENGINE
- * Logic: Strictly maps Latin characters to 3-frame viseme states.
+ * ENGLISH PHONETIC ENGINE (24 FPS)
+ * Logic: Maps Latin characters to 3-frame viseme states.
  * Frame 0: Closed (Punctuation, Spaces, M/P/B Bilabials)
  * Frame 1: Half-Open (Narrow vowels, Consonants)
  * Frame 2: Wide-Open (A, O, W Wide energy states)
@@ -38,43 +38,42 @@ interface AvatarViewProps {
 const processEnglishPhonetics = (char: string): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
-  
-  // Standard English Stop Set (Punctuation & Whitespace)
   const EN_STOPS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
   if (EN_STOPS.includes(c)) return 0;
-  
-  // Bilabial Closure (Lips must touch)
-  const EN_BILABIALS = "mpb"; 
-  if (EN_BILABIALS.includes(c)) return 0;
-  
-  // Wide Vowels (Low jaw drop)
-  const EN_WIDE = "aow";     
-  if (EN_WIDE.includes(c)) return 2;
-  
-  // Default transitional / narrow state
-  return 1; 
+  if ("mpb".includes(c)) return 0;
+  if ("aow".includes(c)) return 2;
+  return 1;
 };
 
 /**
- * ISOLATED JAPANESE PHONETIC ENGINE
+ * JAPANESE PHONETIC ENGINE (64 FPS)
  * Logic: Maps Kana syllables to 3-frame viseme states.
- * Frame 0: Closed (Punctuation, Glottal/Nasal stops, Ma/Ba/Pa rows)
- * Frame 1: Half-Open (I/U/E rows)
- * Frame 2: Wide-Open (A/O rows)
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
   const JP_STOPS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
   if (JP_STOPS.includes(char)) return 0;
-  
   const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミＭメモバビブベボパピプペポ"; 
   if (JP_BILABIALS.includes(char)) return 0;
-  
   const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアサタナハヤラワガザダオコソトノホモヨロゴゾド"; 
   if (JP_WIDE.includes(char)) return 2;
-  
-  return 1; 
+  return 1;
 };
+
+/**
+ * TEMPORAL MAPPING CONSTANTS (From Cheat Sheet)
+ * Values in relative weights (ms approximation)
+ */
+const ENGLISH_PAUSE_WEIGHTS: Record<string, number> = {
+  '.': 650,
+  '?': 650,
+  ',': 250,
+  ';': 450,
+  ':': 500,
+  '!': 550,
+  '\n': 1250, // Paragraph break
+};
+const DEFAULT_CHAR_WEIGHT = 65; // Average ms per spoken char in English
 
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
@@ -113,7 +112,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasPlayedIncomingRef = useRef(false);
 
-  // Independent Framerate Controllers per Language
+  // Separate FPS counters
   const FPS = language === 'jp' ? 64 : 24;
 
   useEffect(() => {
@@ -139,24 +138,45 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  useEffect(() => {
-    if (isLoading) { hasPlayedIncomingRef.current = false; return; }
-    if (!hasPlayedIncomingRef.current && lastAmadeusMessage.length > 0) {
-      playSound('incoming'); hasPlayedIncomingRef.current = true;
-    }
-  }, [lastAmadeusMessage, isLoading, playSound]);
+  // TEMPORAL MAP GENERATOR (Professional Timing Injection)
+  const temporalMap = useMemo(() => {
+    if (language !== 'en' || !fullCleanText || duration === 0) return null;
 
-  // Unified Audio-Text-Viseme Sync Engine
+    let totalWeight = 0;
+    const weights = Array.from(fullCleanText).map(char => {
+      const w = ENGLISH_PAUSE_WEIGHTS[char] || DEFAULT_CHAR_WEIGHT;
+      totalWeight += w;
+      return w;
+    });
+
+    const scale = duration / totalWeight;
+    let elapsed = 0;
+    return weights.map((w, i) => {
+      const charDuration = w * scale;
+      elapsed += charDuration;
+      return { char: fullCleanText[i], endTime: elapsed };
+    });
+  }, [fullCleanText, duration, language]);
+
+  // UNIFIED SYNC LOGIC
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0 || currentTime === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
     }
 
-    // High-precision time quantization for perfect frame alignment
-    const quantizedTime = Math.floor(currentTime * FPS) / FPS;
-    const progress = Math.min(quantizedTime / duration, 1);
-    const index = Math.floor(progress * fullCleanText.length);
-    const charSafe = Math.min(index, fullCleanText.length - 1);
+    let currentIndex = 0;
+    
+    if (language === 'en' && temporalMap) {
+      // Find the character whose time slot corresponds to the current audio clock
+      const found = temporalMap.findIndex(slot => slot.endTime >= currentTime);
+      currentIndex = found === -1 ? fullCleanText.length : found;
+    } else {
+      // Standard linear fallback for Japanese (sampled at 64fps)
+      const progress = Math.min(currentTime / duration, 1);
+      currentIndex = Math.floor(progress * fullCleanText.length);
+    }
+
+    const charSafe = Math.min(currentIndex, fullCleanText.length - 1);
     
     let currentLen = 0;
     let selectedChunk = chunks[0] || { tag: 'normal', text: '' };
@@ -168,21 +188,19 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       }
     }
 
-    return { displayedText: fullCleanText.slice(0, index), activeChunk: selectedChunk, charIndex: charSafe };
-  }, [fullCleanText, currentTime, duration, isLoading, chunks, FPS]);
+    return { displayedText: fullCleanText.slice(0, currentIndex), activeChunk: selectedChunk, charIndex: charSafe };
+  }, [fullCleanText, currentTime, duration, isLoading, chunks, language, temporalMap]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
   const avatarState = useMemo(() => {
-    // Lock expression changes to active audio playback start
     if (currentTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
 
     const tag = normalizeTag(activeChunk.tag);
-    // Determine if we should use a profile head asset
     const isProfileBase = tag.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     
     if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
@@ -191,13 +209,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    // Side blink is strictly locked to profile perspectives.
-    // 'side' tag (kurisu_side1,2,3) is defined as front-facing side-eye, using standard blink.
     return state.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state);
   }, [avatarState]);
 
   useEffect(() => {
-    // Stop mouth logic when not speaking or at starts/ends
     if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
     }
@@ -205,7 +220,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
     const char = fullCleanText[charIndex] || '';
     
-    // Strictly separated phonetic engines
+    // Independent Language Settings (No Mixed Coding)
     if (language === 'jp') {
       setFrameIndex(processJapanesePhonetics(char));
     } else {
@@ -235,22 +250,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const blinkAsset = isProfileView ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
-  const paragraphs = useMemo(() => {
-    const words = language === 'jp' ? displayedText.split('') : displayedText.split(' ');
-    const result: string[] = [];
-    const chunkSize = language === 'jp' ? 150 : 100;
-    for (let i = 0; i < words.length; i += chunkSize) {
-      result.push(words.slice(i, i + chunkSize).join(language === 'jp' ? '' : ' '));
-    }
-    return result;
-  }, [displayedText, language]);
-
   return (
     <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}>
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* HARDWARE ACCELERATED PRE-DECODING (Force-renders all viseme sequences to GPU) */}
+      {/* GPU READY PRE-DECODING CONTAINER */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
@@ -290,19 +295,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
               <div className="bg-black/60 backdrop-blur-2xl border-l-4 border-amber-500/80 p-8 rounded-r-2xl shadow-2xl overflow-hidden flex flex-col">
                 <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto scrollbar-thin-amber space-y-6">
                   {isLoading ? (
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xl lg:text-2xl text-amber-50/70 font-sans leading-relaxed tracking-wide italic animate-pulse">Synchronizing neural matrix...</p>
-                    </div>
+                    <p className="text-xl lg:text-2xl text-amber-50/70 font-sans leading-relaxed tracking-wide italic animate-pulse">Synchronizing neural matrix...</p>
                   ) : (
                     <>
-                      {paragraphs.map((para, idx) => (
-                        <p key={idx} className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
-                          {para}
-                          {idx === paragraphs.length - 1 && isTtsSpeaking && currentTime < duration && (
-                            <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
-                          )}
-                        </p>
-                      ))}
+                      <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
+                        {displayedText}
+                        {isTtsSpeaking && currentTime < duration && (
+                          <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
+                        )}
+                      </p>
                       {translation && (
                         <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-fade-in">
                           <span className="text-[8px] font-orbitron text-amber-500/60 uppercase tracking-widest block mb-2">Translation</span>
