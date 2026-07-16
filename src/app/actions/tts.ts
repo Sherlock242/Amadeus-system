@@ -6,10 +6,19 @@
  * Bypasses CORS restrictions by performing the request server-side.
  */
 
-export async function generateFishAudio(text: string, referenceId?: string) {
+export async function generateFishAudio(text: string, language?: string, referenceId?: string) {
   // Secured credentials via environment variables
   const API_KEY = process.env.FISH_AUDIO_API_KEY;
-  const REFERENCE_ID = referenceId || process.env.FISH_AUDIO_REFERENCE_ID;
+  
+  // Use provided referenceId, otherwise fallback to env based on language
+  let finalReferenceId = referenceId;
+  if (!finalReferenceId) {
+    if (language === 'jp') {
+      finalReferenceId = process.env.FISH_AUDIO_JAP_REFERENCE_ID;
+    } else {
+      finalReferenceId = process.env.FISH_AUDIO_REFERENCE_ID;
+    }
+  }
 
   try {
     const response = await fetch('https://api.fish.audio/v1/tts', {
@@ -22,7 +31,7 @@ export async function generateFishAudio(text: string, referenceId?: string) {
       },
       body: JSON.stringify({
         text: text,
-        reference_id: REFERENCE_ID,
+        reference_id: finalReferenceId,
         format: 'mp3',
         normalize: true,
         latency: 'normal'

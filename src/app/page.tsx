@@ -177,6 +177,7 @@ export default function AmadeusApp() {
         setPersonalitySettings(brain.personality);
         setTtsSettings(brain.tts);
         setMusicSettings(brain.music);
+        setMusicSettings(brain.music);
         setMemories(brain.memories);
         setSessionApiKey(brain.apiKey || apiKey);
         setSessionOpenRouterKey(brain.openRouterKey || openRouterKey || '');
@@ -213,8 +214,8 @@ export default function AmadeusApp() {
     setIsSpeaking(false);
     if (ttsSettings.engine !== 'disabled') {
         const speakableText = cleanDisplay.replace(/\[[a-z_:]+[^\]]*\]/g, '').trim();
-        const referenceId = ttsSettings.language === 'jp' ? '0ec9e84ba69b4f15ab3b52ac542b6693' : undefined;
-        speak(speakableText, { ...ttsSettings, elevenLabsVoiceId: referenceId || '' });
+        // Removed hardcoded Japanese reference ID logic - handled by server action via .env
+        speak(speakableText, ttsSettings);
     }
   };
 

@@ -61,7 +61,8 @@ export const useTTS = (): UseTTSReturn => {
     setCurrentTime(0);
 
     try {
-      const result = await generateFishAudio(text);
+      // Pass both text, language, and manual referenceId if available
+      const result = await generateFishAudio(text, settings.language, settings.elevenLabsVoiceId || undefined);
       
       if (result && result.audioData) {
         const audio = new Audio(result.audioData);
