@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -38,23 +37,27 @@ const getProfessionalVisemeFrame = (text: string, index: number, language: 'en' 
   
   const char = text[index].toLowerCase();
   
-  // Punctuation & Stops (Closed Mouth)
+  // High-precision Punctuation Sets
   const JP_STOP = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
   const EN_STOP = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
 
   if (language === 'en') {
-    // Bilabial consonants (Lips must touch) + Punctuation
-    if (EN_STOP.includes(char) || "mpb".includes(char)) return 0;
-    // Wide vowels
+    // Stage 1: Punctuation & Whitespace (Image 1 - Closed)
+    if (EN_STOP.includes(char)) return 0;
+    // Stage 2: Phonetic Bilabial Closure (Lips must touch: M, P, B)
+    if ("mpb".includes(char)) return 0;
+    // Stage 3: Wide/Rounded Vowels (Image 3 - Full Open)
     if ("aow".includes(char)) return 2;
-    // Narrow/Mid vowels and other consonants
+    // Stage 4: Narrow Vowels & Transitions (Image 2 - Half-Open)
     return 1;
   } else {
-    // Japanese Punctuation + Bilabial rows (Ma, Ba, Pa)
-    if (JP_STOP.includes(char) || "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ".includes(char)) return 0;
-    // Japanese Wide Vowels (A, O rows)
+    // Stage 1: Japanese Punctuation & Stops (Image 1 - Closed)
+    if (JP_STOP.includes(char)) return 0;
+    // Stage 2: Japanese Phonetic Bilabials (Ma, Ba, Pa rows)
+    if ("まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ".includes(char)) return 0;
+    // Stage 3: Japanese Wide Vowels (A, O rows)
     if ("あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ".includes(char)) return 2;
-    // Japanese Narrow/Mid Vowels (I, U, E rows)
+    // Stage 4: Japanese Narrow/Mid Vowels (I, U, E rows)
     return 1;
   }
 };
@@ -158,19 +161,21 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
+    // Base state until audio actually plays
     if (!isTtsSpeaking || currentTime === 0) return 'normal';
 
     const tag = normalizeTag(activeChunk.tag);
-    const isProfileBase = tag === 'side' || tag.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
+    // Profile perspectives (side blink required)
+    const isProfileBase = tag.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, currentTime]);
 
-  // Perspective Locking: Ensures side blink is only used for sided assets
+  // Perspective Locking: Ensures side blink is only used for true profile assets
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    const profileMarkers = ['side', 'thinking', 'surprised', 'pleasant', 'worried'];
+    const profileMarkers = ['thinking', 'surprised', 'pleasant', 'talking'];
     return state.includes('sided_') || profileMarkers.includes(state);
   }, [avatarState]);
 
@@ -179,6 +184,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
     }
+    // Prevent trailing mouth movement
     if (currentTime >= duration - 0.05) { setFrameIndex(0); return; }
 
     setFrameIndex(getProfessionalVisemeFrame(fullCleanText, charIndex, language));
@@ -221,7 +227,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* Synchronous Decoding Container */}
+      {/* Synchronous Pre-Decoding Layer */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />

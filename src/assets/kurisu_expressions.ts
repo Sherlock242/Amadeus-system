@@ -34,7 +34,7 @@ export const kurisuExpressions: Record<string, string[]> = {
   'thinking':            [`${IMAGE_PATH}kurisu_sided_thinking1.png`,     `${IMAGE_PATH}kurisu_sided_thinking2.png`,     `${IMAGE_PATH}kurisu_sided_thinking3.png`],
   'surprised':           [`${IMAGE_PATH}kurisu_sided_surprised1.png`,    `${IMAGE_PATH}kurisu_sided_surprised2.png`,    `${IMAGE_PATH}kurisu_sided_surprised3.png`],
   'pleasant':            [`${IMAGE_PATH}kurisu_sided_pleasant1.png`,     `${IMAGE_PATH}kurisu_sided_pleasant2.png`,     `${IMAGE_PATH}kurisu_sided_pleasant3.png`],
-  'worried':             [`${IMAGE_PATH}kurisu_sided_talking1.png`,      `${IMAGE_PATH}kurisu_sided_talking2.png`,      `${IMAGE_PATH}kurisu_sided_talking3.png`],
+  'talking':             [`${IMAGE_PATH}kurisu_sided_talking1.png`,      `${IMAGE_PATH}kurisu_sided_talking2.png`,      `${IMAGE_PATH}kurisu_sided_talking3.png`],
   'glitching':           [`${IMAGE_PATH}kurisu_pissed1.png`,             `${IMAGE_PATH}kurisu_pissed2.png`,             `${IMAGE_PATH}kurisu_pissed3.png`],
 
   // ── User Provided Strict Sided Aliases ──
