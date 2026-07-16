@@ -41,27 +41,21 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
   
   if (language === 'jp') {
     // 0: Closed (Image 1), 1: Half (Image 2), 2: Full (Image 3)
-    
-    // Touen (、), Kuten (。), brackets, and silence
     const jpSilence = " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】";
     if (jpSilence.includes(c)) return 0;
-    
-    // Glottal stops (pause) and nasal 'N' sounds require closed mouth
     if (/[っッんン]/.test(c)) return 0;
     
-    // A-row and O-row syllables (Wide Open)
     const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザダバパオコソトノホモヨロゴゾドボポ]/.test(c);
     if (wideOpen || /[ぁゃャ]/.test(c) || 'ao'.includes(c)) return 2;
     
-    // I, U, E row syllables (Half Open)
-    const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルエケセテネヘメレギジヂビピグズヅブプゲゼデベペ]/.test(c);
+    const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルEケセテネヘメレギジヂビピグズヅブプゲZEデベペ]/.test(c);
     if (halfOpen || /[ぃゅぅょィュゥョ]/.test(c) || 'iue'.includes(c)) return 1;
     
     return isShouting ? 2 : 1;
   } 
   
   // English Sync Engine
-  const englishSilence = ".,!?;:()[]_-\n\t'\"` "; 
+  const englishSilence = " .,!?;:()[]_-\n\t'\"` "; // Space added for closure between words
   if (englishSilence.indexOf(c) !== -1) return 0;
   if (/[mpb]/.test(c)) return 0; // Bilabial stops
   
@@ -144,9 +138,9 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  const { displayedText, activeChunk, visibleCharsIndex, isComplete } = useMemo(() => {
+  const { displayedText, activeChunk, isComplete } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
-      return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0, isComplete: false };
+      return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, isComplete: false };
     }
     const progress = Math.min(currentTime / duration, 1);
     const charCount = Math.floor(progress * fullCleanText.length);
@@ -161,7 +155,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         break;
       }
     }
-    return { displayedText: textSoFar, activeChunk: selectedChunk, visibleCharsIndex: charCount, isComplete: progress >= 0.99 };
+    return { displayedText: textSoFar, activeChunk: selectedChunk, isComplete: progress >= 0.99 };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
   useEffect(() => {
@@ -193,11 +187,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     
     if (now - lastMouthUpdate.current < frameInterval) return;
     
-    if (!isTtsSpeaking || isLoading || visibleCharsIndex === 0) {
+    if (!isTtsSpeaking || isLoading || isComplete) {
       setFrameIndex(0); return;
     }
+
+    const progress = Math.min(currentTime / duration, 1);
+    const charIndex = Math.floor(progress * fullCleanText.length);
+    const currentChar = fullCleanText[Math.min(charIndex, fullCleanText.length - 1)] || ' ';
+    
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
-    const currentChar = fullCleanText[Math.max(0, visibleCharsIndex - 1)] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
@@ -208,7 +206,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
     lastMouthUpdate.current = now;
-  }, [isTtsSpeaking, avatarState, isLoading, visibleCharsIndex, fullCleanText, language, currentTime]);
+  }, [isTtsSpeaking, avatarState, isLoading, fullCleanText, language, currentTime, duration, isComplete]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
   const currentImage = currentFrames[frameIndex % currentFrames.length];
