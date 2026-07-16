@@ -29,20 +29,20 @@ interface AvatarViewProps {
 }
 
 /**
- * ENGLISH PHONETIC ENGINE (Strictly Isolated)
+ * ENGLISH PHONETIC ENGINE (24 FPS)
  */
 const processEnglishPhonetics = (char: string): number => {
   if (!char) return 0;
-  const c = char.toLowerCase();
   const EN_STOPS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
-  if (EN_STOPS.includes(c)) return 0;
+  if (EN_STOPS.includes(char)) return 0;
+  const c = char.toLowerCase();
   if ("mpb".includes(c)) return 0;
   if ("aow".includes(c)) return 2;
   return 1;
 };
 
 /**
- * JAPANESE PHONETIC ENGINE (Strictly Isolated)
+ * JAPANESE PHONETIC ENGINE (64 FPS)
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
@@ -56,7 +56,7 @@ const processJapanesePhonetics = (char: string): number => {
 };
 
 /**
- * TEMPORAL MAPPING WEIGHTS
+ * TEMPORAL PUNCTUATION TIMINGS (Normalized to Audio Clock)
  */
 const ENGLISH_PAUSE_WEIGHTS: Record<string, number> = {
   '.': 650, '?': 650, ',': 250, ';': 450, ':': 500, '!': 550, '\n': 1250,
@@ -101,12 +101,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [frameIndex, setFrameIndex] = useState(0);
   const [isBlinking, setIsBlinking] = useState(false);
-  const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
+  const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.webp');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // FPS Locked Sampling
-  const FPS = language === 'jp' ? 64 : 24;
+  // 1. HARDWARE ACCELERATED ZERO-LAG DECODING PIPELINE
+  useEffect(() => {
+    const allImages = Object.values(kurisuExpressions).flat();
+    const otherAssets = ['/images/kurisu_blink.webp', '/images/kurisu_side_blink.webp', '/images/background.webp'];
+    const preloadList = [...new Set([...allImages, ...otherAssets])];
 
+    preloadList.forEach(src => {
+      const img = new Image();
+      img.src = src;
+      // Native JS Decoding API forces the browser to decode and cache the bitmap in GPU memory
+      img.decode().catch(e => console.warn(`Asset failed decode: ${src}`, e));
+    });
+  }, []);
+
+  // 2. BLINK ENGINE
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -130,6 +142,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
+  // 3. TEMPORAL MAPPING ENGINE
   const temporalMap = useMemo(() => {
     if (!fullCleanText || duration === 0) return null;
     const weights = language === 'jp' ? JAPANESE_PAUSE_WEIGHTS : ENGLISH_PAUSE_WEIGHTS;
@@ -171,11 +184,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
+  // 4. PERSPECTIVE & BLINK LOCKING
   const avatarState = useMemo(() => {
     if (currentTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
+    // Explicitly lock profiles: anything including 'sided' or the profile aliases, but NOT the 'side' tag itself
     const isProfileBase = tag.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
@@ -183,12 +198,11 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    // Profile perspectives must include 'sided' or a logical alias, EXCEPT the front-facing 'side' tag
-    const sideKeywords = ['sided', 'thinking', 'surprised', 'pleasant', 'talking'];
-    const hasSideIndicator = sideKeywords.some(kw => state.includes(kw));
-    return hasSideIndicator && state !== 'side';
+    const profileKeywords = ['sided', 'thinking', 'surprised', 'pleasant', 'talking'];
+    return profileKeywords.some(kw => state.includes(kw)) && state !== 'side';
   }, [avatarState]);
 
+  // 5. LIP-SYNC ENGINE (Isolated by Language)
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
@@ -222,21 +236,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (inputValue.trim() && !isLoading) { onSendMessage(inputValue.trim()); setInputValue(''); }
   };
 
-  const blinkAsset = isProfileView ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
+  const blinkAsset = isProfileView ? '/images/kurisu_side_blink.webp' : '/images/kurisu_blink.webp';
 
   return (
     <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}>
-      <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
+      <img src="/images/background.webp" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
-
-      {/* Aggressive GPU Pre-Decoding */}
-      <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
-        {Object.values(kurisuExpressions).flat().map((frame, i) => (
-          <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
-        ))}
-        <img src="/images/kurisu_blink.png" alt="" className="w-1 h-1" loading="eager" decoding="sync" />
-        <img src="/images/kurisu_side_blink.png" alt="" className="w-1 h-1" loading="eager" decoding="sync" />
-      </div>
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
