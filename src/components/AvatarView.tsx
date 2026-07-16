@@ -29,44 +29,55 @@ interface AvatarViewProps {
 }
 
 /**
- * ENGLISH PHONETIC ENGINE (24 FPS)
+ * ENGINE: ENGLISH PHONETIC MAPPING
  */
 const processEnglishPhonetics = (char: string): number => {
   if (!char) return 0;
+  // Professional STOP character set
   const EN_STOPS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
   if (EN_STOPS.includes(char)) return 0;
+  
   const c = char.toLowerCase();
+  // Bilabial closure (M, P, B)
   if ("mpb".includes(c)) return 0;
+  // Wide open vowels
   if ("aow".includes(c)) return 2;
+  // Default half-open for others
   return 1;
 };
 
 /**
- * JAPANESE PHONETIC ENGINE (64 FPS)
+ * ENGINE: JAPANESE PHONETIC MAPPING
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
   const JP_STOPS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
   if (JP_STOPS.includes(char)) return 0;
+  
+  // Ma, Ba, Pa rows for closure
   const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミＭメモバビブベボパピプペポ"; 
   if (JP_BILABIALS.includes(char)) return 0;
+  
+  // A, O rows for wide drop
   const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアサタナハヤラワガザダオコソトノホモヨロゴゾド"; 
   if (JP_WIDE.includes(char)) return 2;
+  
   return 1;
 };
 
 /**
- * TEMPORAL PUNCTUATION TIMINGS (Normalized to Audio Clock)
+ * TEMPORAL PAUSE WEIGHTS (ms)
+ * Used to calculate slots in the audio timeline.
  */
-const ENGLISH_PAUSE_WEIGHTS: Record<string, number> = {
+const EN_PAUSE_WEIGHTS: Record<string, number> = {
   '.': 650, '?': 650, ',': 250, ';': 500, ':': 500, '!': 550, '\n': 1250,
 };
-const ENGLISH_CHAR_WEIGHT = 65;
+const EN_CHAR_WEIGHT = 65;
 
-const JAPANESE_PAUSE_WEIGHTS: Record<string, number> = {
+const JP_PAUSE_WEIGHTS: Record<string, number> = {
   '。': 560, '、': 225, '「': 260, '」': 260, '・': 95, '！': 410, '？': 560, '…': 600, '\n': 1000,
 };
-const JAPANESE_CHAR_WEIGHT = 70;
+const JP_CHAR_WEIGHT = 70;
 
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
@@ -104,7 +115,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.webp');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // BLINK ENGINE
+  // FPS QUANTIZER: Enforces strict sampling frequencies per language
+  const quantizedTime = useMemo(() => {
+    if (currentTime === 0) return 0;
+    const fps = language === 'jp' ? 64 : 24;
+    return Math.floor(currentTime * fps) / fps;
+  }, [currentTime, language]);
+
+  // BLINK ENGINE: Organic periodic blinking
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -128,17 +146,19 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  // TEMPORAL MAPPING ENGINE
+  // TEMPORAL MAPPING ENGINE: Slots every character/pause to the audio timeline
   const temporalMap = useMemo(() => {
     if (!fullCleanText || duration === 0) return null;
-    const weights = language === 'jp' ? JAPANESE_PAUSE_WEIGHTS : ENGLISH_PAUSE_WEIGHTS;
-    const charWeight = language === 'jp' ? JAPANESE_CHAR_WEIGHT : ENGLISH_CHAR_WEIGHT;
+    const weights = language === 'jp' ? JP_PAUSE_WEIGHTS : EN_PAUSE_WEIGHTS;
+    const charWeight = language === 'jp' ? JP_CHAR_WEIGHT : EN_CHAR_WEIGHT;
+    
     let totalWeight = 0;
     const slots = Array.from(fullCleanText).map(char => {
       const w = weights[char] || charWeight;
       totalWeight += w;
       return w;
     });
+    
     const scale = duration / totalWeight;
     let elapsed = 0;
     return slots.map((w, i) => {
@@ -147,13 +167,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     });
   }, [fullCleanText, duration, language]);
 
+  // Derived state for display and viseme sampling
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
-    if (isLoading || !fullCleanText || duration === 0 || currentTime === 0 || !temporalMap) {
+    if (isLoading || !fullCleanText || duration === 0 || quantizedTime === 0 || !temporalMap) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
     }
-    const found = temporalMap.findIndex(slot => slot.endTime >= currentTime);
+    const found = temporalMap.findIndex(slot => slot.endTime >= quantizedTime);
     const currentIndex = found === -1 ? fullCleanText.length : found;
     const charSafe = Math.min(currentIndex, fullCleanText.length - 1);
+    
     let currentLen = 0;
     let selectedChunk = chunks[0] || { tag: 'normal', text: '' };
     for (const chunk of chunks) {
@@ -164,42 +186,43 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       }
     }
     return { displayedText: fullCleanText.slice(0, currentIndex), activeChunk: selectedChunk, charIndex: charSafe };
-  }, [fullCleanText, currentTime, duration, isLoading, chunks, temporalMap]);
+  }, [fullCleanText, quantizedTime, duration, isLoading, chunks, temporalMap]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // PERSPECTIVE & BLINK LOCKING
+  // PERSPECTIVE & VISUAL STATE ENGINE
   const avatarState = useMemo(() => {
-    if (currentTime === 0 && !isLoading) return 'normal';
+    if (quantizedTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
     return (kurisuExpressions[tag] ? tag : 'normal');
-  }, [activeChunk.tag, isGlitching, isLoading, currentTime]);
+  }, [activeChunk.tag, isGlitching, isLoading, quantizedTime]);
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    // Strictly exclude the 'side' tag as it is front-facing "front side eye"
+    // Front-facing eye tracking tag: strictly not a profile view
     if (state === 'side') return false;
     const profileKeywords = ['sided', 'thinking', 'surprised', 'pleasant', 'talking'];
     return profileKeywords.some(kw => state.includes(kw));
   }, [avatarState]);
 
-  // LIP-SYNC ENGINE (Isolated by Language & FPS)
+  // LIP-SYNC ENGINE: Isolated language paths
   useEffect(() => {
-    if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
+    if (!isTtsSpeaking || isLoading || charIndex === -1 || quantizedTime === 0) {
       setFrameIndex(0); return;
     }
-    if (currentTime >= duration - 0.05) { setFrameIndex(0); return; }
+    if (quantizedTime >= duration - 0.05) { setFrameIndex(0); return; }
+    
     const char = fullCleanText[charIndex] || '';
     if (language === 'jp') {
       setFrameIndex(processJapanesePhonetics(char));
     } else {
       setFrameIndex(processEnglishPhonetics(char));
     }
-  }, [charIndex, fullCleanText, language, isTtsSpeaking, isLoading, currentTime, duration]);
+  }, [charIndex, fullCleanText, language, isTtsSpeaking, isLoading, quantizedTime, duration]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
   const currentImage = currentFrames[frameIndex % currentFrames.length];
@@ -266,7 +289,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                     <>
                       <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
                         {displayedText}
-                        {isTtsSpeaking && currentTime < duration && (
+                        {isTtsSpeaking && quantizedTime < duration && (
                           <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
                         )}
                       </p>
@@ -276,8 +299,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                           <p className="text-amber-200/80 text-sm italic leading-relaxed">{translation}</p>
                         </div>
                       )}
-                      {!isLoading && currentTime >= duration && language === 'jp' && !translation && (
-                        <button onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 font-bold uppercase transition-all tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit">Translate to English</button>
+                      {!isLoading && quantizedTime >= duration && language === 'jp' && !translation && (
+                        <button onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 uppercase transition-all tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit">Translate to English</button>
                       )}
                     </>
                   )}
