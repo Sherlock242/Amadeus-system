@@ -49,15 +49,19 @@ const getProfessionalVisemeFrame = (text: string, index: number, language: 'en' 
   const char = text[index].toLowerCase();
 
   if (language === 'en') {
-    // Current character triggers
+    // Force Closed for punctuation or bilabials
     if (EN_STOPS.includes(char) || EN_BILABIAL.includes(char)) return 0;
+    // Full Open for wide vowels
     if (EN_2_OPEN.includes(char)) return 2;
-    return 1; // Default to half-open
+    // Half Open for everything else
+    return 1;
   } else {
-    // Current character triggers
+    // Force Closed for Japanese punctuation, stops, or bilabials
     if (JP_0_CLOSED.includes(char)) return 0;
+    // Full Open for A/O rows
     if (JP_2_OPEN.includes(char)) return 2;
-    return 1; // Default to half-open
+    // Half Open for I/U/E rows
+    return 1;
   }
 };
 
@@ -142,11 +146,17 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Sync Logic: Drives text and mouth from a single audio-locked temporal node
+  // Sync Logic: Locked to audio clock
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
-    if (isLoading || !fullCleanText || duration === 0) {
-      return { displayedText: '', activeChunk: chunks[0] || { tag: 'normal', text: '' }, charIndex: -1 };
+    // If not speaking or at start, keep text hidden and tag neutral
+    if (isLoading || !fullCleanText || duration === 0 || currentTime === 0) {
+      return { 
+        displayedText: '', 
+        activeChunk: { tag: 'normal', text: '' }, 
+        charIndex: -1 
+      };
     }
+
     const progress = Math.min(currentTime / duration, 1);
     const index = Math.floor(progress * fullCleanText.length);
     const charSafe = Math.min(index, fullCleanText.length - 1);
@@ -174,14 +184,22 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [displayedText, isLoading]);
 
+  // Expression Logic: Only updates when audio is actually playing
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
+    
+    // Prevent premature expression change: stay 'normal' if audio hasn't started
+    if (!isTtsSpeaking || currentTime === 0) return 'normal';
+
     const tag = normalizeTag(activeChunk.tag);
     const isProfileBase = tag.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
+    
+    // Special handling for side-profile talking
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
+    
     return (kurisuExpressions[tag] ? tag : 'normal');
-  }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
+  }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, currentTime]);
 
   const isProfileView = useMemo(() => {
     const tag = normalizeTag(activeChunk.tag);
@@ -189,14 +207,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return avatarState.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState, activeChunk.tag]);
 
-  // Professional Animation Core: Maps current character context to viseme frames
+  // Viseme Engine: Maps current character to 3-frame sequence
   useEffect(() => {
-    if (!isTtsSpeaking || isLoading || charIndex === -1) {
+    if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
     }
 
     // Force closure at final moment of audio
-    if (currentTime >= duration - 0.04) {
+    if (currentTime >= duration - 0.05) {
       setFrameIndex(0);
       return;
     }
