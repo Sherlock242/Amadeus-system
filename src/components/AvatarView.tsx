@@ -29,33 +29,31 @@ interface AvatarViewProps {
 }
 
 /**
- * PROFESSIONAL ENGLISH PHONETIC ENGINE (24 FPS TARGET)
- * Standard Latin viseme mapping.
+ * ISOLATED ENGLISH PHONETIC ENGINE (24 FPS)
  */
 const processEnglishPhonetics = (char: string): number => {
   const EN_STOPS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
-  const EN_BILABIALS = "mpb"; // Lips touch
-  const EN_WIDE = "aow";     // Jaw drops
+  const EN_BILABIALS = "mpb"; 
+  const EN_WIDE = "aow";     
   
-  if (EN_STOPS.includes(char)) return 0;    // Image 1 (Closed)
-  if (EN_BILABIALS.includes(char)) return 0; // Image 1 (Closure)
-  if (EN_WIDE.includes(char)) return 2;      // Image 3 (Full Open)
-  return 1; // Image 2 (Half-Open)
+  if (EN_STOPS.includes(char)) return 0;    
+  if (EN_BILABIALS.includes(char)) return 0; 
+  if (EN_WIDE.includes(char)) return 2;      
+  return 1; 
 };
 
 /**
- * PROFESSIONAL JAPANESE PHONETIC ENGINE (64 FPS TARGET)
- * High-precision Kana viseme mapping.
+ * ISOLATED JAPANESE PHONETIC ENGINE (64 FPS)
  */
 const processJapanesePhonetics = (char: string): number => {
   const JP_STOPS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
-  const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ"; // Lips touch
-  const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアサタナハヤラワガザダオコソトノホモヨロゴゾド"; // Jaw drops
+  const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ"; 
+  const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアサタナハヤラワガザダオコソトノホモヨロゴゾド"; 
 
-  if (JP_STOPS.includes(char)) return 0;    // Image 1 (Closed)
-  if (JP_BILABIALS.includes(char)) return 0; // Image 1 (Closure)
-  if (JP_WIDE.includes(char)) return 2;      // Image 3 (Full Open)
-  return 1; // Image 2 (Half-Open)
+  if (JP_STOPS.includes(char)) return 0;    
+  if (JP_BILABIALS.includes(char)) return 0; 
+  if (JP_WIDE.includes(char)) return 2;      
+  return 1; 
 };
 
 const normalizeTag = (raw: string): string =>
@@ -95,10 +93,9 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasPlayedIncomingRef = useRef(false);
 
-  // INDEPENDENT LANGUAGE FRAMERATES
+  // INDEPENDENT LANGUAGE TARGETS
   const FPS = language === 'jp' ? 64 : 24;
 
-  // Blink logic
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -129,13 +126,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // PROFESSIONAL TEMPORAL SYNC (Audio-Hardware Locked)
+  // UNIFIED TEMPORAL LOCK
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0 || currentTime === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
     }
 
-    // High-precision quantization for target framerate
     const quantizedTime = Math.floor(currentTime * FPS) / FPS;
     const progress = Math.min(quantizedTime / duration, 1);
     const index = Math.floor(progress * fullCleanText.length);
@@ -158,27 +154,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // PERSPECTIVE AND EXPRESSION LOGIC
   const avatarState = useMemo(() => {
     if (currentTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
 
     const tag = normalizeTag(activeChunk.tag);
-    // Profile perspectives: side, thinking, surprised, pleasant, talking
     const isProfileBase = tag.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     
     if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, currentTime]);
 
-  // PERSPECTIVE LOCKING: side tag is front-facing. Aliases are side-profile.
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
+    // User strictly specified "side" is front side eyes, so it uses front blink.
     return state.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state);
   }, [avatarState]);
 
-  // PHONETIC MAPPING (Independent Logic Paths)
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
@@ -251,12 +244,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
               alt="Amadeus Avatar" 
               className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transform-gpu will-change-transform"
               onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
+              decoding="sync"
             />
             {isBlinking && (
               <img 
                 src={blinkAsset} 
                 alt="Blink" 
                 className="absolute bottom-0 h-[95%] w-auto object-contain transform-gpu"
+                decoding="sync"
               />
             )}
           </div>
@@ -270,11 +265,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                   {isLoading ? (
                     <div className="flex flex-col gap-2">
                       <p className="text-xl lg:text-2xl text-amber-50/70 font-sans leading-relaxed tracking-wide italic animate-pulse">Synchronizing neural matrix...</p>
-                      <div className="flex gap-1.5 ml-1">
-                        <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                        <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                        <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
-                      </div>
                     </div>
                   ) : (
                     <>
@@ -297,10 +287,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                       )}
                     </>
                   )}
-                </div>
-                <div className="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
-                  <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'THINKING' : 'STABLE'}</span>
-                  <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag || 'normal'}</span>
                 </div>
               </div>
             </div>
