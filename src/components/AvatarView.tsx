@@ -29,37 +29,44 @@ interface AvatarViewProps {
 }
 
 /**
- * PROFESSIONAL VISEME MAPPING ENGINE
- * Maps audio hardware clock directly to 3-frame phonetic states
+ * ISOLATED ENGLISH PHONETIC ENGINE
+ * No mix-coding with Japanese logic.
  */
+const processEnglishPhonetics = (char: string): number => {
+  const STOPS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
+  const BILABIALS = "mpb";
+  const WIDE_VOWELS = "aow";
+
+  if (STOPS.includes(char)) return 0; // Image 1 (Closed)
+  if (BILABIALS.includes(char)) return 0; // Image 1 (Phonetic Closure)
+  if (WIDE_VOWELS.includes(char)) return 2; // Image 3 (Full Open)
+  return 1; // Image 2 (Half-Open) for everything else
+};
+
+/**
+ * ISOLATED JAPANESE PHONETIC ENGINE
+ * No mix-coding with English logic.
+ */
+const processJapanesePhonetics = (char: string): number => {
+  const STOPS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
+  const BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ";
+  const WIDE_VOWELS = "あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ";
+
+  if (STOPS.includes(char)) return 0; // Image 1 (Closed)
+  if (BILABIALS.includes(char)) return 0; // Image 1 (Phonetic Closure)
+  if (WIDE_VOWELS.includes(char)) return 2; // Image 3 (Full Open)
+  return 1; // Image 2 (Half-Open) for everything else
+};
+
 const getProfessionalVisemeFrame = (text: string, index: number, language: 'en' | 'jp'): number => {
   if (!text || index < 0 || index >= text.length) return 0;
-  
   const char = text[index].toLowerCase();
   
-  // High-precision Punctuation Sets
-  const JP_STOP = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
-  const EN_STOP = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
-
-  if (language === 'en') {
-    // Stage 1: Punctuation & Whitespace (Image 1 - Closed)
-    if (EN_STOP.includes(char)) return 0;
-    // Stage 2: Phonetic Bilabial Closure (Lips must touch: M, P, B)
-    if ("mpb".includes(char)) return 0;
-    // Stage 3: Wide/Rounded Vowels (Image 3 - Full Open)
-    if ("aow".includes(char)) return 2;
-    // Stage 4: Narrow Vowels & Transitions (Image 2 - Half-Open)
-    return 1;
-  } else {
-    // Stage 1: Japanese Punctuation & Stops (Image 1 - Closed)
-    if (JP_STOP.includes(char)) return 0;
-    // Stage 2: Japanese Phonetic Bilabials (Ma, Ba, Pa rows)
-    if ("まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ".includes(char)) return 0;
-    // Stage 3: Japanese Wide Vowels (A, O rows)
-    if ("あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ".includes(char)) return 2;
-    // Stage 4: Japanese Narrow/Mid Vowels (I, U, E rows)
-    return 1;
+  // Routing to strictly separated engines
+  if (language === 'jp') {
+    return processJapanesePhonetics(char);
   }
+  return processEnglishPhonetics(char);
 };
 
 const normalizeTag = (raw: string): string =>
@@ -130,7 +137,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Sync Logic: Derived purely from hardware clock
+  // Sync Logic: Audio-Clock driven
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0 || currentTime === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
@@ -157,34 +164,35 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // Expression Logic: Locked to the audio start
+  // Expression & Perspective Logic
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
-    // Base state until audio actually plays
+    // Base state until audio plays
     if (!isTtsSpeaking || currentTime === 0) return 'normal';
 
     const tag = normalizeTag(activeChunk.tag);
-    // Profile perspectives (side blink required)
+    // Profile perspective detection
     const isProfileBase = tag.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, currentTime]);
 
-  // Perspective Locking: Ensures side blink is only used for true profile assets
+  // Strictly classification of the head perspective for blink mapping
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
+    // 'side' is treated as a front-facing head per user requirement
     const profileMarkers = ['thinking', 'surprised', 'pleasant', 'talking'];
     return state.includes('sided_') || profileMarkers.includes(state);
   }, [avatarState]);
 
-  // Lip-Sync Viseme Engine
+  // Lip-Sync Viseme Engine (No Look-Ahead)
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
     }
-    // Prevent trailing mouth movement
+    // Prevent trailing mouth movement at the absolute end
     if (currentTime >= duration - 0.05) { setFrameIndex(0); return; }
 
     setFrameIndex(getProfessionalVisemeFrame(fullCleanText, charIndex, language));
@@ -227,7 +235,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* Synchronous Pre-Decoding Layer */}
+      {/* Force-Decoding Container for GPU Readiness */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
