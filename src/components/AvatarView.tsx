@@ -104,21 +104,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.webp');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. HARDWARE ACCELERATED ZERO-LAG DECODING PIPELINE
-  useEffect(() => {
-    const allImages = Object.values(kurisuExpressions).flat();
-    const otherAssets = ['/images/kurisu_blink.webp', '/images/kurisu_side_blink.webp', '/images/background.webp'];
-    const preloadList = [...new Set([...allImages, ...otherAssets])];
-
-    preloadList.forEach(src => {
-      const img = new Image();
-      img.src = src;
-      // Native JS Decoding API forces the browser to decode and cache the bitmap in GPU memory
-      img.decode().catch(e => console.warn(`Asset failed decode: ${src}`, e));
-    });
-  }, []);
-
-  // 2. BLINK ENGINE
+  // BLINK ENGINE
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -142,7 +128,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  // 3. TEMPORAL MAPPING ENGINE
+  // TEMPORAL MAPPING ENGINE
   const temporalMap = useMemo(() => {
     if (!fullCleanText || duration === 0) return null;
     const weights = language === 'jp' ? JAPANESE_PAUSE_WEIGHTS : ENGLISH_PAUSE_WEIGHTS;
@@ -184,16 +170,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // 4. PERSPECTIVE & BLINK LOCKING
+  // PERSPECTIVE & BLINK LOCKING
   const avatarState = useMemo(() => {
     if (currentTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
-    const isProfileBase = tag.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
-    if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
-  }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, currentTime]);
+  }, [activeChunk.tag, isGlitching, isLoading, currentTime]);
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
@@ -203,7 +187,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return profileKeywords.some(kw => state.includes(kw));
   }, [avatarState]);
 
-  // 5. LIP-SYNC ENGINE (Isolated by Language)
+  // LIP-SYNC ENGINE (Isolated by Language & FPS)
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
@@ -254,9 +238,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
             <img 
               src={imgSrc} 
               alt="Amadeus Avatar" 
-              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transform-gpu will-change-transform"
+              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transform-gpu"
               onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
               decoding="sync"
+              loading="eager"
             />
             {isBlinking && (
               <img 
@@ -264,6 +249,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                 alt="Blink" 
                 className="absolute bottom-0 h-[95%] w-auto object-contain transform-gpu"
                 decoding="sync"
+                loading="eager"
               />
             )}
           </div>
