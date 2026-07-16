@@ -33,31 +33,34 @@ const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
 
 /**
- * High-Precision Unified Viseme Engine (3-Frame Mapping)
- * Image 1: Closed (0), Image 2: Half (1), Image 3: Full (2)
+ * High-Precision 4-Stage Phonetic Engine
+ * Frame 0: Closed (Image 1) - Silence, Punctuation, Bilabial Onset
+ * Frame 1: Half (Image 2) - Narrow Vowels
+ * Frame 2: Full (Image 3) - Wide Vowels
  */
 const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
   if (language === 'jp') {
-    // Perfect Japanese Punctuation Stop Protocol (Image 1 / Frame 0)
+    // 1. STRICT CLOSURE: Punctuation & Stops (Image 1)
     const jpSilence = " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】";
     if (jpSilence.includes(c)) return 0;
     if (/[っッんン]/.test(c)) return 0;
     
-    // Wide Open Vowels (Image 3 / Frame 2) - A and O rows including voiced variants
-    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザダバパオコソトノホモヨロゴゾドボポ]/.test(c);
+    // 2. PHONETIC CLOSURE DURING SPEECH: Bilabials (Ma, Ba, Pa rows)
+    const bilabials = /[まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ]/.test(c);
+    if (bilabials) return 0;
+    
+    // 3. FULL OPEN: Wide Vowels (A, O rows)
+    const wideOpen = /[あかさたなはやらわがざだおこそとのほもよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポ]/.test(c);
     if (wideOpen || /[ぁゃャ]/.test(c) || 'ao'.includes(c)) return 2;
     
-    // Half Open Vowels (Image 2 / Frame 1) - I, U, E rows
-    const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルエケセテネヘメレギジヂビピグズヅブプゲゼデベペ]/.test(c);
-    if (halfOpen || /[ぃゅぅょィュゥョ]/.test(c) || 'iue'.includes(c)) return 1;
-    
-    return isShouting ? 2 : 1;
+    // 4. HALF OPEN: Narrow Vowels (I, U, E rows)
+    return 1;
   } 
   
-  // High-Precision English Punctuation Stop Protocol
+  // English Engine (Precision Punctuation & Vowel Cadence)
   const englishSilence = " .,!?;:()[]_-\n\t'\"`‘’“”–—… "; 
   if (englishSilence.includes(c)) return 0;
   if (/[mpb]/.test(c)) return 0; 
@@ -65,10 +68,7 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
   const wideVowels = "aouw";
   if (wideVowels.includes(c)) return 2;
   
-  const midVowels = "eiy";
-  if (midVowels.includes(c)) return 1;
-  
-  return isShouting ? 2 : 1;
+  return 1; // Mid vowels and constants
 };
 
 interface Chunk { tag: string; text: string; }
@@ -106,7 +106,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Aggressive Image Pre-decoding for Lag-Free Start
+  // Aggressive Force-Decoding and Pre-loading Container (Lag Elimination)
   useEffect(() => {
     const allImages = [
       ...Object.values(kurisuExpressions).flat(),
@@ -190,10 +190,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return avatarState.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState, activeChunk.tag]);
 
-  // High-Precision Synchronization & Look-Ahead Punctuation Protocol
+  // High-Precision Phonetic Loop
   useEffect(() => {
     const now = Date.now();
-    const frameInterval = language === 'jp' ? 16 : 41; // 60fps for JP Syllables, 24fps for EN Rhythm
+    const frameInterval = language === 'jp' ? 16 : 41; 
     
     if (now - lastMouthUpdate.current < frameInterval) return;
     
@@ -213,13 +213,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
-    // Look-Ahead Punctuation Protocol (Stop Anticipation)
-    const currentSilenceSet = language === 'jp' 
-      ? " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】" 
+    // anticipatory closure check
+    const silenceSet = language === 'jp' 
+      ? " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】っッんン" 
       : " .,!?;:()[]_-\n\t'\"`‘’“”–—… ";
 
-    if (targetFrame > 0 && currentSilenceSet.includes(nextChar)) {
-        targetFrame = 0; // Forced closure (Image 1) for anticipated pause
+    if (targetFrame > 0 && silenceSet.includes(nextChar)) {
+        targetFrame = 0; 
     }
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
@@ -265,7 +265,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* High-Priority Pre-loading Container for Lag-Free Performance */}
+      {/* Force-Decoding Container for Lag-Free Performance */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" />
