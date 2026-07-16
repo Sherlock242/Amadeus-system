@@ -33,42 +33,48 @@ const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
 
 /**
- * High-Precision 4-Stage Phonetic Engine
- * Frame 0: Closed (Image 1) - Silence, Punctuation, Bilabial Onset
- * Frame 1: Half (Image 2) - Narrow Vowels
- * Frame 2: Full (Image 3) - Wide Vowels
+ * HIGH-PRECISION PHONETIC ENGINE (STRICTLY SEPARATED)
+ * Stage 1 & 2: Image 1 (Closed) - Punctuation & Phonetic stops (M/P/B/ん)
+ * Stage 3: Image 3 (Full Open) - Wide vowels (A/O)
+ * Stage 4: Image 2 (Half Open) - Narrow vowels (I/U/E)
  */
-const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
+const getMouthFrame = (char: string, language: 'en' | 'jp' = 'en'): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
+  // === JAPANESE 4-STAGE ENGINE ===
   if (language === 'jp') {
-    // 1. STRICT CLOSURE: Punctuation & Stops (Image 1)
-    const jpSilence = " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】";
-    if (jpSilence.includes(c)) return 0;
-    if (/[っッんン]/.test(c)) return 0;
+    // Stage 1: Strict Punctuation Closure (Image 1)
+    const jpPunctuation = " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】";
+    if (jpPunctuation.includes(c)) return 0;
     
-    // 2. PHONETIC CLOSURE DURING SPEECH: Bilabials (Ma, Ba, Pa rows)
-    const bilabials = /[まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ]/.test(c);
-    if (bilabials) return 0;
+    // Stage 2: Phonetic Closure (Bilabials & Stops) (Image 1)
+    // Ma (ま), Ba (ば), Pa (ぱ) rows and Nasal Stop (ん)
+    const jpClosure = /[まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポんンっッ]/.test(c);
+    if (jpClosure) return 0;
     
-    // 3. FULL OPEN: Wide Vowels (A, O rows)
-    const wideOpen = /[あかさたなはやらわがざだおこそとのほもよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポ]/.test(c);
-    if (wideOpen || /[ぁゃャ]/.test(c) || 'ao'.includes(c)) return 2;
+    // Stage 3: Full Open (A and O Rows) (Image 3)
+    const jpWide = /[あかさたなはやらわがざだおこそとのほもよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ]/.test(c);
+    if (jpWide) return 2;
     
-    // 4. HALF OPEN: Narrow Vowels (I, U, E rows)
+    // Stage 4: Half Open (I, U, E Rows) (Image 2)
     return 1;
   } 
   
-  // English Engine (Precision Punctuation & Vowel Cadence)
-  const englishSilence = " .,!?;:()[]_-\n\t'\"`‘’“”–—… "; 
-  if (englishSilence.includes(c)) return 0;
+  // === ENGLISH INDEPENDENT ENGINE ===
+  // Stage 1: Punctuation & Space Closure (Image 1)
+  const enPunctuation = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
+  if (enPunctuation.includes(c)) return 0;
+  
+  // Stage 2: Phonetic Closure (Bilabials M, P, B) (Image 1)
   if (/[mpb]/.test(c)) return 0; 
   
-  const wideVowels = "aouw";
-  if (wideVowels.includes(c)) return 2;
+  // Stage 3: Full Open (A, O, U vowels) (Image 3)
+  const enWide = "aouw";
+  if (enWide.includes(c)) return 2;
   
-  return 1; // Mid vowels and constants
+  // Stage 4: Half Open (E, I, and other consonants) (Image 2)
+  return 1;
 };
 
 interface Chunk { tag: string; text: string; }
@@ -106,7 +112,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Aggressive Force-Decoding and Pre-loading Container (Lag Elimination)
+  // Aggressive Pre-decoding to eliminate initial conversation lag
   useEffect(() => {
     const allImages = [
       ...Object.values(kurisuExpressions).flat(),
@@ -186,11 +192,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
+    // 'side' (kurisu_side1,2,3) is treated as front-facing as per user instruction
     if (normalizeTag(activeChunk.tag) === 'side') return false;
     return avatarState.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState, activeChunk.tag]);
 
-  // High-Precision Phonetic Loop
+  // Unified Lip-Sync Timing Loop (Strictly Isolated Engines)
   useEffect(() => {
     const now = Date.now();
     const frameInterval = language === 'jp' ? 16 : 41; 
@@ -209,17 +216,16 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     const nextChar = fullCleanText[charSafe + 1] || ' ';
     
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
-    const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
-    let targetFrame = getMouthFrame(currentChar, isShouting, language);
+    let targetFrame = getMouthFrame(currentChar, language);
     
-    // anticipatory closure check
-    const silenceSet = language === 'jp' 
-      ? " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】っッんン" 
-      : " .,!?;:()[]_-\n\t'\"`‘’“”–—… ";
+    // Anticipatory Look-Ahead Closure (Stage 1 & 2)
+    const closureSet = language === 'jp' 
+      ? " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】っッんンまみむめもばびぶべぼぱぴぷぺぽ" 
+      : " .,!?;:()[]_-\n\t'\"`‘’“”–—… mpb";
 
-    if (targetFrame > 0 && silenceSet.includes(nextChar)) {
-        targetFrame = 0; 
+    if (targetFrame > 0 && closureSet.includes(nextChar)) {
+        targetFrame = 0; // Forced Anticipatory Closure (Image 1)
     }
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
