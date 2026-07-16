@@ -33,7 +33,7 @@ const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
 
 /**
- * High-precision Viseme Engine
+ * High-Precision Unified Viseme Engine (3-Frame Mapping)
  * Image 1: Closed (0), Image 2: Half (1), Image 3: Full (2)
  */
 const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
@@ -41,20 +41,23 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
   const c = char.toLowerCase();
   
   if (language === 'jp') {
+    // Perfect Japanese Punctuation Stop Protocol (Image 1 / Frame 0)
     const jpSilence = " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】";
     if (jpSilence.includes(c)) return 0;
     if (/[っッんン]/.test(c)) return 0;
     
-    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザDAバパオCOSOトノホモヨロゴゾドボポ]/.test(c);
+    // Wide Open Vowels (Image 3 / Frame 2) - A and O rows including voiced variants
+    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザダバパオコソトノホモヨロゴゾドボポ]/.test(c);
     if (wideOpen || /[ぁゃャ]/.test(c) || 'ao'.includes(c)) return 2;
     
-    const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルEケセテネヘメレギジヂビピグズヅブプゲZEデベペ]/.test(c);
+    // Half Open Vowels (Image 2 / Frame 1) - I, U, E rows
+    const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルエケセテネヘメレギジヂビピグズヅブプゲゼデベペ]/.test(c);
     if (halfOpen || /[ぃゅぅょィュゥョ]/.test(c) || 'iue'.includes(c)) return 1;
     
     return isShouting ? 2 : 1;
   } 
   
-  // High-Precision English Engine with Punctuation Sensitivity
+  // High-Precision English Punctuation Stop Protocol
   const englishSilence = " .,!?;:()[]_-\n\t'\"`‘’“”–—… "; 
   if (englishSilence.includes(c)) return 0;
   if (/[mpb]/.test(c)) return 0; 
@@ -103,7 +106,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Aggressive Image Pre-decoding to eliminate lag
+  // Aggressive Image Pre-decoding for Lag-Free Start
   useEffect(() => {
     const allImages = [
       ...Object.values(kurisuExpressions).flat(),
@@ -187,10 +190,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return avatarState.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState, activeChunk.tag]);
 
-  // Precision Synchronization & Look-Ahead Punctuation Protocol
+  // High-Precision Synchronization & Look-Ahead Punctuation Protocol
   useEffect(() => {
     const now = Date.now();
-    const frameInterval = language === 'jp' ? 16 : 41; // 60fps for JP, 24fps for EN
+    const frameInterval = language === 'jp' ? 16 : 41; // 60fps for JP Syllables, 24fps for EN Rhythm
     
     if (now - lastMouthUpdate.current < frameInterval) return;
     
@@ -211,11 +214,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
     // Look-Ahead Punctuation Protocol (Stop Anticipation)
-    if (language === 'en' && targetFrame > 0) {
-      const silenceSet = " .,!?;:()[]_-\n\t'\"`‘’“”–—… ";
-      if (silenceSet.includes(nextChar)) {
-        targetFrame = 0; // Close mouth Image 1 if next char is a stop
-      }
+    const currentSilenceSet = language === 'jp' 
+      ? " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】" 
+      : " .,!?;:()[]_-\n\t'\"`‘’“”–—… ";
+
+    if (targetFrame > 0 && currentSilenceSet.includes(nextChar)) {
+        targetFrame = 0; // Forced closure (Image 1) for anticipated pause
     }
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
@@ -261,13 +265,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* High-Priority Pre-loading Container */}
-      <div className="hidden pointer-events-none" aria-hidden="true">
+      {/* High-Priority Pre-loading Container for Lag-Free Performance */}
+      <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
-          <img key={i} src={frame} alt="" style={{ willChange: 'transform' }} />
+          <img key={i} src={frame} alt="" className="w-1 h-1" />
         ))}
-        <img src="/images/kurisu_blink.png" alt="" />
-        <img src="/images/kurisu_side_blink.png" alt="" />
+        <img src="/images/kurisu_blink.png" alt="" className="w-1 h-1" />
+        <img src="/images/kurisu_side_blink.png" alt="" className="w-1 h-1" />
       </div>
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
