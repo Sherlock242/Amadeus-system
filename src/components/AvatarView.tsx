@@ -40,18 +40,30 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
   const c = char.toLowerCase();
   
   if (language === 'jp') {
-    if (" .,!?;:()[]_-\n\t「」。、！？…っッ".includes(c)) return 0;
-    if (/[あかさたなはまやらわおこそとのほもよろアカサタナハマヤラワオコソトノホモヨロ]/.test(c)) return 2;
-    if ('ao'.includes(c)) return 2;
-    if (/[いきしちにひみりうくすつぬふむゆるえけせてねへめれイキシチニヒミリウクスツヌフユルエKEセテネHEメレ]/.test(c)) return 1;
-    if ('iue'.includes(c)) return 1;
-    if (/[んン]/.test(c)) return 0;
+    // 0: Closed (Image 1), 1: Half (Image 2), 2: Full (Image 3)
+    
+    // Touen (、), Kuten (。), brackets, and silence
+    const jpSilence = " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】";
+    if (jpSilence.includes(c)) return 0;
+    
+    // Glottal stops (pause) and nasal 'N' sounds require closed mouth
+    if (/[っッんン]/.test(c)) return 0;
+    
+    // A-row and O-row syllables (Wide Open)
+    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザダバパオコソトノホモヨロゴゾドボポ]/.test(c);
+    if (wideOpen || /[ぁゃャ]/.test(c) || 'ao'.includes(c)) return 2;
+    
+    // I, U, E row syllables (Half Open)
+    const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルエケセテネヘメレギジヂビピグズヅブプゲゼデベペ]/.test(c);
+    if (halfOpen || /[ぃゅぅょィュゥョ]/.test(c) || 'iue'.includes(c)) return 1;
+    
     return isShouting ? 2 : 1;
   } 
   
   // English Sync Engine
   const englishSilence = ".,!?;:()[]_-\n\t'\"` "; 
   if (englishSilence.indexOf(c) !== -1) return 0;
+  if (/[mpb]/.test(c)) return 0; // Bilabial stops
   
   if (/[aou]/.test(c)) return 2; 
   if (/[eiy]/.test(c)) return 1; 
@@ -132,7 +144,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Unified Synchronization Point: Subtitles and logic share progress derived from TTS timing
   const { displayedText, activeChunk, visibleCharsIndex, isComplete } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, visibleCharsIndex: 0, isComplete: false };
@@ -172,15 +183,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
-    // 'side' (kurisu_side1,2,3) is treated as front-facing head per requirement
     return avatarState.includes('sided_') || 
            ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState]);
 
-  // Mouth Animation Loop: Triggered by changes in visible text to maintain 100% sync
   useEffect(() => {
     const now = Date.now();
-    // English Engine: 41ms (24fps) | Japanese Engine: 16ms (60fps)
     const frameInterval = language === 'jp' ? 16 : 41; 
     
     if (now - lastMouthUpdate.current < frameInterval) return;
@@ -189,14 +197,11 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       setFrameIndex(0); return;
     }
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
-    
-    // Sample precisely the character being shown in subtitles right now
     const currentChar = fullCleanText[Math.max(0, visibleCharsIndex - 1)] || ' ';
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
-    // Slight jitter for organic feel during speech
     if (targetFrame > 0 && Math.random() > 0.85) {
       targetFrame = targetFrame === 2 ? 1 : 2;
     }
