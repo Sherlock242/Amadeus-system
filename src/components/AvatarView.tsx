@@ -30,9 +30,6 @@ interface AvatarViewProps {
 
 /**
  * ENGLISH PHONETIC ENGINE (Strictly Isolated)
- * Frame 0: Closed (Punctuation, Spaces, M/P/B Bilabials)
- * Frame 1: Half-Open (Narrow vowels, Consonants)
- * Frame 2: Wide-Open (A, O, W Wide energy states)
  */
 const processEnglishPhonetics = (char: string): number => {
   if (!char) return 0;
@@ -46,7 +43,6 @@ const processEnglishPhonetics = (char: string): number => {
 
 /**
  * JAPANESE PHONETIC ENGINE (Strictly Isolated)
- * High-precision mapping for Kana syllables.
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
@@ -60,8 +56,7 @@ const processJapanesePhonetics = (char: string): number => {
 };
 
 /**
- * TEMPORAL MAPPING CONSTANTS (Professional Cadence)
- * Adjusted -25% for Anime/Fast cadence as requested.
+ * TEMPORAL MAPPING WEIGHTS
  */
 const ENGLISH_PAUSE_WEIGHTS: Record<string, number> = {
   '.': 650, '?': 650, ',': 250, ';': 450, ':': 500, '!': 550, '\n': 1250,
@@ -109,7 +104,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // FPS Settings: 64 for JP, 24 for EN
+  // FPS Locked Sampling
   const FPS = language === 'jp' ? 64 : 24;
 
   useEffect(() => {
@@ -135,20 +130,16 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  // Unified Temporal Map Generator
   const temporalMap = useMemo(() => {
     if (!fullCleanText || duration === 0) return null;
-
     const weights = language === 'jp' ? JAPANESE_PAUSE_WEIGHTS : ENGLISH_PAUSE_WEIGHTS;
     const charWeight = language === 'jp' ? JAPANESE_CHAR_WEIGHT : ENGLISH_CHAR_WEIGHT;
-
     let totalWeight = 0;
     const slots = Array.from(fullCleanText).map(char => {
       const w = weights[char] || charWeight;
       totalWeight += w;
       return w;
     });
-
     const scale = duration / totalWeight;
     let elapsed = 0;
     return slots.map((w, i) => {
@@ -157,16 +148,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     });
   }, [fullCleanText, duration, language]);
 
-  // Sync Logic
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0 || currentTime === 0 || !temporalMap) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
     }
-
     const found = temporalMap.findIndex(slot => slot.endTime >= currentTime);
     const currentIndex = found === -1 ? fullCleanText.length : found;
     const charSafe = Math.min(currentIndex, fullCleanText.length - 1);
-    
     let currentLen = 0;
     let selectedChunk = chunks[0] || { tag: 'normal', text: '' };
     for (const chunk of chunks) {
@@ -176,7 +164,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         break;
       }
     }
-
     return { displayedText: fullCleanText.slice(0, currentIndex), activeChunk: selectedChunk, charIndex: charSafe };
   }, [fullCleanText, currentTime, duration, isLoading, chunks, temporalMap]);
 
@@ -185,23 +172,21 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [displayedText, isLoading]);
 
   const avatarState = useMemo(() => {
-    // Expression changes are strictly gated until audio starts
     if (currentTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
-
     const tag = normalizeTag(activeChunk.tag);
-    // Profile logic: thinking, surprised, pleasant, and talking are side-view
-    const isProfileBase = tag.startsWith('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
-    
+    const isProfileBase = tag.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, currentTime]);
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    // 'side' is strictly front-facing per instruction (front side eye images) and must use kurisu_blink.png
-    return (state.startsWith('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state)) && state !== 'side';
+    // Profile perspectives must include 'sided' or a logical alias, EXCEPT the front-facing 'side' tag
+    const sideKeywords = ['sided', 'thinking', 'surprised', 'pleasant', 'talking'];
+    const hasSideIndicator = sideKeywords.some(kw => state.includes(kw));
+    return hasSideIndicator && state !== 'side';
   }, [avatarState]);
 
   useEffect(() => {
@@ -209,10 +194,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       setFrameIndex(0); return;
     }
     if (currentTime >= duration - 0.05) { setFrameIndex(0); return; }
-
     const char = fullCleanText[charIndex] || '';
-    
-    // Viseme logic - strictly separated by language
     if (language === 'jp') {
       setFrameIndex(processJapanesePhonetics(char));
     } else {
@@ -240,7 +222,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (inputValue.trim() && !isLoading) { onSendMessage(inputValue.trim()); setInputValue(''); }
   };
 
-  // kurisu_blink.png is strictly locked to all front images (non-profile views)
   const blinkAsset = isProfileView ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
 
   return (
@@ -248,7 +229,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* Aggressive GPU Pre-Decoding Container */}
+      {/* Aggressive GPU Pre-Decoding */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
