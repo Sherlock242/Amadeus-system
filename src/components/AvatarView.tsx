@@ -45,7 +45,7 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
     if (jpSilence.includes(c)) return 0;
     if (/[っッんン]/.test(c)) return 0;
     
-    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザダバパオコソトノホモヨロゴゾドボポ]/.test(c);
+    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザダバパオCOSOトノホモヨロゴゾドボポ]/.test(c);
     if (wideOpen || /[ぁゃャ]/.test(c) || 'ao'.includes(c)) return 2;
     
     const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルEケセテネヘメレギジヂビピグズヅブプゲZEデベペ]/.test(c);
@@ -54,9 +54,9 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
     return isShouting ? 2 : 1;
   } 
   
-  // English Sync Engine
-  const englishSilence = " .,!?;:()[]_-\n\t'\"` "; // Space added for closure between words
-  if (englishSilence.indexOf(c) !== -1) return 0;
+  // English Sync Engine - Enhanced punctuation and silence mapping
+  const englishSilence = " .,!?;:()[]_-\n\t'\"`‘’“”–—… "; 
+  if (englishSilence.includes(c)) return 0;
   if (/[mpb]/.test(c)) return 0; // Bilabial stops
   
   if (/[aou]/.test(c)) return 2; 
@@ -155,7 +155,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         break;
       }
     }
-    return { displayedText: textSoFar, activeChunk: selectedChunk, isComplete: progress >= 0.99 };
+    return { displayedText: textSoFar, activeChunk: selectedChunk, isComplete: progress >= 0.995 };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
   useEffect(() => {
@@ -193,15 +193,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
     const progress = Math.min(currentTime / duration, 1);
     const charIndex = Math.floor(progress * fullCleanText.length);
-    const currentChar = fullCleanText[Math.min(charIndex, fullCleanText.length - 1)] || ' ';
+    const charSafe = Math.min(charIndex, fullCleanText.length - 1);
+    
+    // Precise sampling with silence-priority window for English
+    const currentChar = fullCleanText[charSafe] || ' ';
+    const nextChar = fullCleanText[charSafe + 1] || ' ';
     
     const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
     const isShouting = ['surprised', 'pissed', 'angry', 'glitching'].some(w => avatarState.includes(w));
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
-    if (targetFrame > 0 && Math.random() > 0.85) {
-      targetFrame = targetFrame === 2 ? 1 : 2;
+    // In English, prioritize mouth closure if next character is silence or punctuation
+    // This prevents the mouth hanging open at the end of words or sentences.
+    if (language === 'en' && targetFrame > 0) {
+       const silenceSet = " .,!?;:()[]_-\n\t'\"`‘’“”–—… ";
+       if (silenceSet.includes(nextChar)) {
+         targetFrame = 0;
+       }
     }
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
@@ -305,7 +314,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                       {paragraphs.map((para, idx) => (
                         <p key={idx} className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
                           {para}
-                          {idx === paragraphs.length - 1 && isTtsSpeaking && (
+                          {idx === paragraphs.length - 1 && isTtsSpeaking && !isComplete && (
                             <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
                           )}
                         </p>
