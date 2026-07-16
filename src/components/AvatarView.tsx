@@ -31,31 +31,42 @@ interface AvatarViewProps {
 
 /**
  * PROFESSIONAL VISEME MAPPING ENGINE
- * Grouping phonemes into visual states (Visemes)
+ * Industry-standard phonetic grouping for 2D lipsync
  */
 
-// Japanese Viseme Maps
-const JP_VISEME_0_CLOSED = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんンまみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ";
-const JP_VISEME_2_OPEN   = "あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ";
-// Everything else defaults to Viseme 1 (Half-Open)
+// Japanese Phonetic Map
+const JP_0_CLOSED = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんンまみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ";
+const JP_2_OPEN   = "あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ";
 
-// English Viseme Maps
-const EN_VISEME_0_CLOSED = " .,!?;:()[]_-\n\t'\"`‘’“”–—…mpb";
-const EN_VISEME_2_OPEN   = "aowu";
-// Everything else defaults to Viseme 1 (Half-Open)
+// English Phonetic Map
+const EN_STOPS    = " .,!?;:()[]_-\n\t'\"`‘’“”–—…"; // Punctuation & Whitespace
+const EN_BILABIAL = "mpb"; // Lips must touch
+const EN_2_OPEN   = "aow";   // Wide/Rounded vowels
 
-const getProfessionalVisemeFrame = (char: string, language: 'en' | 'jp'): number => {
-  if (!char) return 0;
-  const c = char.toLowerCase();
+const getProfessionalVisemeFrame = (text: string, index: number, language: 'en' | 'jp'): number => {
+  if (!text || index < 0 || index >= text.length) return 0;
+  
+  // Professional Look-Ahead (2 characters)
+  // Anticipates stops and bilabials to match audio decay/prep
+  for (let i = 0; i <= 2; i++) {
+    const lookIdx = index + i;
+    if (lookIdx < text.length) {
+      const char = text[lookIdx].toLowerCase();
+      if (language === 'en') {
+        if (EN_STOPS.includes(char) || EN_BILABIAL.includes(char)) return 0;
+      } else {
+        if (JP_0_CLOSED.includes(char)) return 0;
+      }
+    }
+  }
 
+  const c = text[index].toLowerCase();
   if (language === 'jp') {
-    if (JP_VISEME_0_CLOSED.includes(c)) return 0;
-    if (JP_VISEME_2_OPEN.includes(c)) return 2;
-    return 1;
+    if (JP_2_OPEN.includes(c)) return 2;
+    return 1; // Default to half-open
   } else {
-    if (EN_VISEME_0_CLOSED.includes(c)) return 0;
-    if (EN_VISEME_2_OPEN.includes(c)) return 2;
-    return 1;
+    if (EN_2_OPEN.includes(c)) return 2;
+    return 1; // Default to half-open (covers E, I, U, Y and other consonants)
   }
 };
 
@@ -96,13 +107,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasPlayedIncomingRef = useRef(false);
 
-  // Aggressive Pre-loading to eliminate initial lag
+  // Pre-decoding for smooth initial conversation
   useEffect(() => {
     const allImages = [
       ...Object.values(kurisuExpressions).flat(),
       '/images/kurisu_blink.png',
-      '/images/kurisu_side_blink.png',
-      kurisuImageDataUrl
+      '/images/kurisu_side_blink.png'
     ];
     allImages.forEach(src => { 
       const img = new Image(); 
@@ -110,7 +120,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     });
   }, []);
 
-  // Standard Blink Logic
+  // Blink logic
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -141,7 +151,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Unified Sync Calculation
+  // Sync Logic: Drives text and mouth from a single audio-locked temporal node
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
       return { displayedText: '', activeChunk: chunks[0] || { tag: 'normal', text: '' }, charIndex: -1 };
@@ -188,21 +198,20 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return avatarState.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState, activeChunk.tag]);
 
-  // ANIMATION LOOP - Driven by charIndex (Viseme Engine)
+  // Professional Animation Core: Maps current character context to viseme frames
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1) {
       setFrameIndex(0); return;
     }
 
-    const currentChar = fullCleanText[charIndex];
-    const targetFrame = getProfessionalVisemeFrame(currentChar, language);
-    
-    // Antialiasing: If audio is near completion or current char is trailing punctuation, force closure
-    if (currentTime >= duration - 0.05) {
+    // Force closure at final moment of audio
+    if (currentTime >= duration - 0.04) {
       setFrameIndex(0);
-    } else {
-      setFrameIndex(targetFrame);
+      return;
     }
+
+    const targetFrame = getProfessionalVisemeFrame(fullCleanText, charIndex, language);
+    setFrameIndex(targetFrame);
   }, [charIndex, fullCleanText, language, isTtsSpeaking, isLoading, currentTime, duration]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
