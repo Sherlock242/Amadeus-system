@@ -29,8 +29,7 @@ interface AvatarViewProps {
 }
 
 /**
- * ENGLISH PHONETIC ENGINE (24 FPS)
- * Logic: Maps Latin characters to 3-frame viseme states.
+ * ENGLISH PHONETIC ENGINE
  * Frame 0: Closed (Punctuation, Spaces, M/P/B Bilabials)
  * Frame 1: Half-Open (Narrow vowels, Consonants)
  * Frame 2: Wide-Open (A, O, W Wide energy states)
@@ -46,8 +45,8 @@ const processEnglishPhonetics = (char: string): number => {
 };
 
 /**
- * JAPANESE PHONETIC ENGINE (64 FPS)
- * Logic: Maps Kana syllables to 3-frame viseme states.
+ * JAPANESE PHONETIC ENGINE
+ * High-precision mapping for Kana syllables.
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
@@ -61,19 +60,18 @@ const processJapanesePhonetics = (char: string): number => {
 };
 
 /**
- * TEMPORAL MAPPING CONSTANTS (From Cheat Sheet)
- * Values in relative weights (ms approximation)
+ * TEMPORAL MAPPING CONSTANTS (User Provided Cheat Sheets)
+ * Adjusted -25% for Anime/Fast cadence.
  */
 const ENGLISH_PAUSE_WEIGHTS: Record<string, number> = {
-  '.': 650,
-  '?': 650,
-  ',': 250,
-  ';': 450,
-  ':': 500,
-  '!': 550,
-  '\n': 1250, // Paragraph break
+  '.': 650, '?': 650, ',': 250, ';': 450, ':': 500, '!': 550, '\n': 1250,
 };
-const DEFAULT_CHAR_WEIGHT = 65; // Average ms per spoken char in English
+const ENGLISH_CHAR_WEIGHT = 65;
+
+const JAPANESE_PAUSE_WEIGHTS: Record<string, number> = {
+  '。': 560, '、': 225, '「': 260, '」': 260, '・': 95, '！': 410, '？': 560, '…': 600, '\n': 1000,
+};
+const JAPANESE_CHAR_WEIGHT = 70;
 
 const normalizeTag = (raw: string): string =>
   raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
@@ -110,9 +108,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [isBlinking, setIsBlinking] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const hasPlayedIncomingRef = useRef(false);
 
-  // Separate FPS counters
+  // LANGUAGE-SPECIFIC FPS SETTINGS
   const FPS = language === 'jp' ? 64 : 24;
 
   useEffect(() => {
@@ -138,44 +135,37 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  // TEMPORAL MAP GENERATOR (Professional Timing Injection)
+  // UNIFIED TEMPORAL MAP GENERATOR (Professional Cadence Injection)
   const temporalMap = useMemo(() => {
-    if (language !== 'en' || !fullCleanText || duration === 0) return null;
+    if (!fullCleanText || duration === 0) return null;
+
+    const weights = language === 'jp' ? JAPANESE_PAUSE_WEIGHTS : ENGLISH_PAUSE_WEIGHTS;
+    const charWeight = language === 'jp' ? JAPANESE_CHAR_WEIGHT : ENGLISH_CHAR_WEIGHT;
 
     let totalWeight = 0;
-    const weights = Array.from(fullCleanText).map(char => {
-      const w = ENGLISH_PAUSE_WEIGHTS[char] || DEFAULT_CHAR_WEIGHT;
+    const slots = Array.from(fullCleanText).map(char => {
+      const w = weights[char] || charWeight;
       totalWeight += w;
       return w;
     });
 
     const scale = duration / totalWeight;
     let elapsed = 0;
-    return weights.map((w, i) => {
-      const charDuration = w * scale;
-      elapsed += charDuration;
+    return slots.map((w, i) => {
+      elapsed += (w * scale);
       return { char: fullCleanText[i], endTime: elapsed };
     });
   }, [fullCleanText, duration, language]);
 
-  // UNIFIED SYNC LOGIC
+  // HIGH-PRECISION SYNC LOGIC
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
-    if (isLoading || !fullCleanText || duration === 0 || currentTime === 0) {
+    if (isLoading || !fullCleanText || duration === 0 || currentTime === 0 || !temporalMap) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
     }
 
-    let currentIndex = 0;
-    
-    if (language === 'en' && temporalMap) {
-      // Find the character whose time slot corresponds to the current audio clock
-      const found = temporalMap.findIndex(slot => slot.endTime >= currentTime);
-      currentIndex = found === -1 ? fullCleanText.length : found;
-    } else {
-      // Standard linear fallback for Japanese (sampled at 64fps)
-      const progress = Math.min(currentTime / duration, 1);
-      currentIndex = Math.floor(progress * fullCleanText.length);
-    }
-
+    // Binary search for the current character slot based on high-frequency clock
+    const found = temporalMap.findIndex(slot => slot.endTime >= currentTime);
+    const currentIndex = found === -1 ? fullCleanText.length : found;
     const charSafe = Math.min(currentIndex, fullCleanText.length - 1);
     
     let currentLen = 0;
@@ -189,7 +179,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
 
     return { displayedText: fullCleanText.slice(0, currentIndex), activeChunk: selectedChunk, charIndex: charSafe };
-  }, [fullCleanText, currentTime, duration, isLoading, chunks, language, temporalMap]);
+  }, [fullCleanText, currentTime, duration, isLoading, chunks, temporalMap]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -201,7 +191,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isLoading) return 'thinking';
 
     const tag = normalizeTag(activeChunk.tag);
-    const isProfileBase = tag.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
+    const isProfileBase = tag.startsWith('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     
     if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
@@ -209,7 +199,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    return state.includes('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state);
+    // 'side' is strictly front-facing per instruction
+    return (state.startsWith('sided_') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state)) && state !== 'side';
   }, [avatarState]);
 
   useEffect(() => {
@@ -220,7 +211,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
     const char = fullCleanText[charIndex] || '';
     
-    // Independent Language Settings (No Mixed Coding)
+    // Sampling logic locked to selected engine with 0 mix coding
     if (language === 'jp') {
       setFrameIndex(processJapanesePhonetics(char));
     } else {
@@ -255,7 +246,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* GPU READY PRE-DECODING CONTAINER */}
+      {/* GPU READY PRE-DECODING CONTAINER (0 LAG SYSTEM) */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
