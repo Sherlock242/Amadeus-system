@@ -59,7 +59,7 @@ const processJapanesePhonetics = (char: string): number => {
  * TEMPORAL PUNCTUATION TIMINGS (Normalized to Audio Clock)
  */
 const ENGLISH_PAUSE_WEIGHTS: Record<string, number> = {
-  '.': 650, '?': 650, ',': 250, ';': 450, ':': 500, '!': 550, '\n': 1250,
+  '.': 650, '?': 650, ',': 250, ';': 500, ':': 500, '!': 550, '\n': 1250,
 };
 const ENGLISH_CHAR_WEIGHT = 65;
 
@@ -190,7 +190,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
     const tag = normalizeTag(activeChunk.tag);
-    // Explicitly lock profiles: anything including 'sided' or the profile aliases, but NOT the 'side' tag itself
     const isProfileBase = tag.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(tag);
     if (isTtsSpeaking && isProfileBase) return 'kurisu_sided_talking';
     return (kurisuExpressions[tag] ? tag : 'normal');
@@ -198,8 +197,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
+    // Strictly exclude the 'side' tag as it is front-facing "front side eye"
+    if (state === 'side') return false;
     const profileKeywords = ['sided', 'thinking', 'surprised', 'pleasant', 'talking'];
-    return profileKeywords.some(kw => state.includes(kw)) && state !== 'side';
+    return profileKeywords.some(kw => state.includes(kw));
   }, [avatarState]);
 
   // 5. LIP-SYNC ENGINE (Isolated by Language)
