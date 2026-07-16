@@ -34,18 +34,18 @@ const normalizeTag = (raw: string): string =>
 
 /**
  * High-precision Viseme Engine
+ * Image 1: Closed (0), Image 2: Half (1), Image 3: Full (2)
  */
 const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' = 'en'): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
   
   if (language === 'jp') {
-    // 0: Closed (Image 1), 1: Half (Image 2), 2: Full (Image 3)
     const jpSilence = " .,!?;:()[]_-\n\t「」。、！？…・（）『』【】";
     if (jpSilence.includes(c)) return 0;
     if (/[っッんン]/.test(c)) return 0;
     
-    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザダバパオCOSOトノホモヨロゴゾドボポ]/.test(c);
+    const wideOpen = /[あかさたなはまやらわがざだばぱおこそとのほもよろごぞどぼぽアヵサタナハマヤラワガザDAバパオCOSOトノホモヨロゴゾドボポ]/.test(c);
     if (wideOpen || /[ぁゃャ]/.test(c) || 'ao'.includes(c)) return 2;
     
     const halfOpen = /[いきしちにひみりうくすつぬふむゆるえけせてねへめれぎじぢびぴぐずづぶぷげぜでべぺイキシチニヒミリウクスツヌフユルEケセテネヘメレギジヂビピグズヅブプゲZEデベペ]/.test(c);
@@ -54,14 +54,18 @@ const getMouthFrame = (char: string, isShouting = false, language: 'en' | 'jp' =
     return isShouting ? 2 : 1;
   } 
   
-  // English Sync Engine - Enhanced punctuation and silence mapping
+  // High-Precision English Engine
   const englishSilence = " .,!?;:()[]_-\n\t'\"`‘’“”–—… "; 
   if (englishSilence.includes(c)) return 0;
-  if (/[mpb]/.test(c)) return 0; // Bilabial stops
+  if (/[mpb]/.test(c)) return 0; // Bilabial closure
   
-  if (/[aou]/.test(c)) return 2; 
-  if (/[eiy]/.test(c)) return 1; 
+  const wideVowels = "aouw";
+  if (wideVowels.includes(c)) return 2;
   
+  const midVowels = "eiy";
+  if (midVowels.includes(c)) return 1;
+  
+  // Standard consonant mouth position
   return isShouting ? 2 : 1;
 };
 
@@ -177,13 +181,15 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking]);
 
   const isProfileView = useMemo(() => {
+    // Treat 'side' as front-head eyes-aside per request.
+    if (normalizeTag(activeChunk.tag) === 'side') return false;
     return avatarState.includes('sided_') || 
            ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
-  }, [avatarState]);
+  }, [avatarState, activeChunk.tag]);
 
   useEffect(() => {
     const now = Date.now();
-    const frameInterval = language === 'jp' ? 16 : 41; 
+    const frameInterval = language === 'jp' ? 16 : 41; // 60fps for JP, 24fps for EN
     
     if (now - lastMouthUpdate.current < frameInterval) return;
     
@@ -195,7 +201,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     const charIndex = Math.floor(progress * fullCleanText.length);
     const charSafe = Math.min(charIndex, fullCleanText.length - 1);
     
-    // Precise sampling with silence-priority window for English
     const currentChar = fullCleanText[charSafe] || ' ';
     const nextChar = fullCleanText[charSafe + 1] || ' ';
     
@@ -204,13 +209,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     
     let targetFrame = getMouthFrame(currentChar, isShouting, language);
     
-    // In English, prioritize mouth closure if next character is silence or punctuation
-    // This prevents the mouth hanging open at the end of words or sentences.
+    // Look-ahead Punctuation Stop for English
     if (language === 'en' && targetFrame > 0) {
-       const silenceSet = " .,!?;:()[]_-\n\t'\"`‘’“”–—… ";
-       if (silenceSet.includes(nextChar)) {
-         targetFrame = 0;
-       }
+      const silenceSet = " .,!?;:()[]_-\n\t'\"`‘’“”–—… ";
+      if (silenceSet.includes(nextChar)) {
+        targetFrame = 0;
+      }
     }
 
     setFrameIndex(Math.min(targetFrame, frames.length - 1));
