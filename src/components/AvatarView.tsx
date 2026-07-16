@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -33,16 +34,12 @@ interface AvatarViewProps {
  */
 const processEnglishPhonetics = (char: string): number => {
   if (!char) return 0;
-  // Professional STOP character set
   const EN_STOPS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
   if (EN_STOPS.includes(char)) return 0;
   
   const c = char.toLowerCase();
-  // Bilabial closure (M, P, B)
   if ("mpb".includes(c)) return 0;
-  // Wide open vowels
   if ("aow".includes(c)) return 2;
-  // Default half-open for others
   return 1;
 };
 
@@ -54,11 +51,9 @@ const processJapanesePhonetics = (char: string): number => {
   const JP_STOPS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
   if (JP_STOPS.includes(char)) return 0;
   
-  // Ma, Ba, Pa rows for closure
   const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミＭメモバビブベボパピプペポ"; 
   if (JP_BILABIALS.includes(char)) return 0;
   
-  // A, O rows for wide drop
   const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアサタナハヤラワガザダオコソトノホモヨロゴゾド"; 
   if (JP_WIDE.includes(char)) return 2;
   
@@ -67,7 +62,6 @@ const processJapanesePhonetics = (char: string): number => {
 
 /**
  * TEMPORAL PAUSE WEIGHTS (ms)
- * Used to calculate slots in the audio timeline.
  */
 const EN_PAUSE_WEIGHTS: Record<string, number> = {
   '.': 650, '?': 650, ',': 250, ';': 500, ':': 500, '!': 550, '\n': 1250,
@@ -115,14 +109,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.webp');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // FPS QUANTIZER: Enforces strict sampling frequencies per language
   const quantizedTime = useMemo(() => {
     if (currentTime === 0) return 0;
     const fps = language === 'jp' ? 64 : 24;
     return Math.floor(currentTime * fps) / fps;
   }, [currentTime, language]);
 
-  // BLINK ENGINE: Organic periodic blinking
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -146,7 +138,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
-  // TEMPORAL MAPPING ENGINE: Slots every character/pause to the audio timeline
   const temporalMap = useMemo(() => {
     if (!fullCleanText || duration === 0) return null;
     const weights = language === 'jp' ? JP_PAUSE_WEIGHTS : EN_PAUSE_WEIGHTS;
@@ -167,7 +158,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     });
   }, [fullCleanText, duration, language]);
 
-  // Derived state for display and viseme sampling
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0 || quantizedTime === 0 || !temporalMap) {
       return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
@@ -194,22 +184,38 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   // PERSPECTIVE & VISUAL STATE ENGINE
   const avatarState = useMemo(() => {
-    if (quantizedTime === 0 && !isLoading) return 'normal';
     if (isGlitching) return 'glitching';
-    if (isLoading) return 'thinking';
+    
     const tag = normalizeTag(activeChunk.tag);
-    return (kurisuExpressions[tag] ? tag : 'normal');
+    const baseTag = kurisuExpressions[tag] ? tag : 'normal';
+    
+    // Determine if base state is a side profile
+    // Exception: 'side' tag uses front-facing assets
+    const isProfile = baseTag !== 'side' && 
+      ['sided', 'thinking', 'surprised', 'pleasant', 'talking'].some(kw => baseTag.includes(kw));
+
+    // Case: Thinking (Loading)
+    if (isLoading) {
+      return 'kurisu_sided_thinking';
+    }
+    
+    // Case: Talking (Side profile override)
+    if (quantizedTime > 0 && isProfile) {
+      return 'kurisu_sided_talking';
+    }
+
+    // Default: Use mapped tag
+    return baseTag;
   }, [activeChunk.tag, isGlitching, isLoading, quantizedTime]);
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
-    // Front-facing eye tracking tag: strictly not a profile view
-    if (state === 'side') return false;
+    if (state === 'side') return false; 
     const profileKeywords = ['sided', 'thinking', 'surprised', 'pleasant', 'talking'];
     return profileKeywords.some(kw => state.includes(kw));
   }, [avatarState]);
 
-  // LIP-SYNC ENGINE: Isolated language paths
+  // LIP-SYNC ENGINE
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || quantizedTime === 0) {
       setFrameIndex(0); return;
