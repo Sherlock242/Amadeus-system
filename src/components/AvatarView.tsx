@@ -31,36 +31,30 @@ interface AvatarViewProps {
 
 /**
  * PROFESSIONAL VISEME MAPPING ENGINE
- * Industry-standard phonetic grouping for 2D lipsync
+ * Maps audio hardware clock directly to 3-frame phonetic states
  */
-
-// Japanese Phonetic Map
-const JP_0_CLOSED = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんンまみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ";
-const JP_2_OPEN   = "あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ";
-
-// English Phonetic Map
-const EN_STOPS    = " .,!?;:()[]_-\n\t'\"`‘’“”–—…"; // Punctuation & Whitespace
-const EN_BILABIAL = "mpb"; // Lips must touch
-const EN_2_OPEN   = "aow";   // Wide/Rounded vowels
-
 const getProfessionalVisemeFrame = (text: string, index: number, language: 'en' | 'jp'): number => {
   if (!text || index < 0 || index >= text.length) return 0;
   
   const char = text[index].toLowerCase();
+  
+  // Punctuation & Stops (Closed Mouth)
+  const JP_STOP = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
+  const EN_STOP = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
 
   if (language === 'en') {
-    // Force Closed for punctuation or bilabials
-    if (EN_STOPS.includes(char) || EN_BILABIAL.includes(char)) return 0;
-    // Full Open for wide vowels
-    if (EN_2_OPEN.includes(char)) return 2;
-    // Half Open for everything else
+    // Bilabial consonants (Lips must touch) + Punctuation
+    if (EN_STOP.includes(char) || "mpb".includes(char)) return 0;
+    // Wide vowels
+    if ("aow".includes(char)) return 2;
+    // Narrow/Mid vowels and other consonants
     return 1;
   } else {
-    // Force Closed for Japanese punctuation, stops, or bilabials
-    if (JP_0_CLOSED.includes(char)) return 0;
-    // Full Open for A/O rows
-    if (JP_2_OPEN.includes(char)) return 2;
-    // Half Open for I/U/E rows
+    // Japanese Punctuation + Bilabial rows (Ma, Ba, Pa)
+    if (JP_STOP.includes(char) || "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ".includes(char)) return 0;
+    // Japanese Wide Vowels (A, O rows)
+    if ("あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ".includes(char)) return 2;
+    // Japanese Narrow/Mid Vowels (I, U, E rows)
     return 1;
   }
 };
@@ -102,19 +96,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasPlayedIncomingRef = useRef(false);
 
-  // Pre-decoding for smooth initial conversation
-  useEffect(() => {
-    const allImages = [
-      ...Object.values(kurisuExpressions).flat(),
-      '/images/kurisu_blink.png',
-      '/images/kurisu_side_blink.png'
-    ];
-    allImages.forEach(src => { 
-      const img = new Image(); 
-      img.src = src; 
-    });
-  }, []);
-
   // Blink logic
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
@@ -146,15 +127,10 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Sync Logic: Locked to audio clock
+  // Sync Logic: Derived purely from hardware clock
   const { displayedText, activeChunk, charIndex } = useMemo(() => {
-    // If not speaking or at start, keep text hidden and tag neutral
     if (isLoading || !fullCleanText || duration === 0 || currentTime === 0) {
-      return { 
-        displayedText: '', 
-        activeChunk: { tag: 'normal', text: '' }, 
-        charIndex: -1 
-      };
+      return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, charIndex: -1 };
     }
 
     const progress = Math.min(currentTime / duration, 1);
@@ -171,56 +147,41 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       }
     }
 
-    return { 
-      displayedText: fullCleanText.slice(0, index), 
-      activeChunk: selectedChunk,
-      charIndex: charSafe
-    };
+    return { displayedText: fullCleanText.slice(0, index), activeChunk: selectedChunk, charIndex: charSafe };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // Expression Logic: Only updates when audio is actually playing
+  // Expression Logic: Locked to the audio start
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     if (isLoading) return 'thinking';
-    
-    // Prevent premature expression change: stay 'normal' if audio hasn't started
     if (!isTtsSpeaking || currentTime === 0) return 'normal';
 
     const tag = normalizeTag(activeChunk.tag);
-    const isProfileBase = tag.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
+    const isProfileBase = tag === 'side' || tag.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(tag);
     
-    // Special handling for side-profile talking
     if (isTtsSpeaking && isProfileBase) return 'sided_talking';
-    
     return (kurisuExpressions[tag] ? tag : 'normal');
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, currentTime]);
 
+  // Perspective Locking: Ensures side blink is only used for sided assets
   const isProfileView = useMemo(() => {
-    const tag = normalizeTag(activeChunk.tag);
-    if (tag === 'side') return false; 
-    return avatarState.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
-  }, [avatarState, activeChunk.tag]);
+    const state = avatarState.toLowerCase();
+    const profileMarkers = ['side', 'thinking', 'surprised', 'pleasant', 'worried'];
+    return state.includes('sided_') || profileMarkers.includes(state);
+  }, [avatarState]);
 
-  // Viseme Engine: Maps current character to 3-frame sequence
+  // Lip-Sync Viseme Engine
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || currentTime === 0) {
       setFrameIndex(0); return;
     }
+    if (currentTime >= duration - 0.05) { setFrameIndex(0); return; }
 
-    // Force closure at final moment of audio
-    if (currentTime >= duration - 0.05) {
-      setFrameIndex(0);
-      return;
-    }
-
-    const targetFrame = getProfessionalVisemeFrame(fullCleanText, charIndex, language);
-    setFrameIndex(targetFrame);
+    setFrameIndex(getProfessionalVisemeFrame(fullCleanText, charIndex, language));
   }, [charIndex, fullCleanText, language, isTtsSpeaking, isLoading, currentTime, duration]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
@@ -240,9 +201,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputValue.trim() && !isLoading) { 
-      onSendMessage(inputValue.trim()); setInputValue(''); 
-    }
+    if (inputValue.trim() && !isLoading) { onSendMessage(inputValue.trim()); setInputValue(''); }
   };
 
   const blinkAsset = isProfileView ? '/images/kurisu_side_blink.png' : '/images/kurisu_blink.png';
@@ -262,7 +221,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* ZERO-LAG PRE-RENDER CONTAINER */}
+      {/* Synchronous Decoding Container */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
           <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
@@ -272,9 +231,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       </div>
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
       </button>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none z-10">
@@ -296,7 +253,6 @@ const AvatarView: React.FC<AvatarViewProps> = ({
           </div>
         </div>
 
-        {/* Dynamic Subtitle Hub */}
         <div className="absolute bottom-40 right-4 left-4 md:right-12 md:left-auto md:top-1/2 md:-translate-y-1/2 md:w-1/3 md:max-sm flex flex-col gap-3 z-20 pointer-events-auto">
           {(displayedText || isLoading) && (
             <div key={`${msgTimestamp}`} className="animate-slide-in-right">
@@ -304,9 +260,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                 <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto scrollbar-thin-amber space-y-6">
                   {isLoading ? (
                     <div className="flex flex-col gap-2">
-                      <p className="text-xl lg:text-2xl text-amber-50/70 font-sans leading-relaxed tracking-wide italic animate-pulse">
-                        Synchronizing neural matrix...
-                      </p>
+                      <p className="text-xl lg:text-2xl text-amber-50/70 font-sans leading-relaxed tracking-wide italic animate-pulse">Synchronizing neural matrix...</p>
                       <div className="flex gap-1.5 ml-1">
                         <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
                         <div className="w-1.5 h-1.5 bg-amber-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
@@ -330,17 +284,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                         </div>
                       )}
                       {!isLoading && currentTime >= duration && language === 'jp' && !translation && (
-                        <button onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit">
-                          Translate to English
-                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 font-bold uppercase transition-all tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit">Translate to English</button>
                       )}
                     </>
                   )}
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'THINKING' : 'STABLE'}</span>
-                  </div>
+                  <span className="text-[10px] font-orbitron text-amber-500/50 tracking-[0.4em] uppercase">{isLoading ? 'THINKING' : 'STABLE'}</span>
                   <span className="text-[10px] font-orbitron text-amber-500/40 uppercase">{activeChunk.tag || 'normal'}</span>
                 </div>
               </div>
@@ -350,15 +300,11 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-xl px-6 z-30 pointer-events-auto">
           <form onSubmit={handleSubmit} className="flex items-center space-x-3">
-            <div className="relative flex-grow">
-              <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)}
-                placeholder={isListening ? 'Listening...' : 'Message...'}
-                className="w-full bg-black/60 border border-white/10 focus:border-amber-500/40 rounded-full py-4 px-8 text-white placeholder-white/10 transition-all outline-none backdrop-blur-2xl font-roboto-mono text-sm" />
-            </div>
+            <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)}
+              placeholder={isListening ? 'Listening...' : 'Message...'}
+              className="w-full bg-black/60 border border-white/10 focus:border-amber-500/40 rounded-full py-4 px-8 text-white placeholder-white/10 transition-all outline-none backdrop-blur-2xl font-roboto-mono text-sm" />
             <button type="submit" disabled={isLoading || !inputValue.trim()} className="bg-amber-500/20 hover:bg-amber-400/40 border border-white/10 text-amber-500 rounded-full p-4 transition-all disabled:opacity-30">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-              </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
             </button>
           </form>
         </div>
