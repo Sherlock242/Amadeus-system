@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -28,43 +29,38 @@ interface AvatarViewProps {
   onTranslate?: () => void;
 }
 
-const normalizeTag = (raw: string): string =>
-  raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
-
 /**
- * 4-STAGE PHONETIC LOGIC (Independent Language Engines)
- * 1. Punctuation Stop (Image 1 - Closed)
- * 2. Phonetic Closure (Image 1 - Closed) - Bilabials (M, B, P rows in JP; M, P, B in EN)
- * 3. Wide Vowels (Image 3 - Full Open) - A, O rows in JP; A, O, W, U in EN
- * 4. Narrow/Mid Vowels (Image 2 - Half Open) - Everything else
+ * PROFESSIONAL VISEME MAPPING ENGINE
+ * Grouping phonemes into visual states (Visemes)
  */
 
-// Japanese Sets
-const JP_STOP_CHARACTERS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
-const JP_BILABIAL_CHARACTERS = "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ";
-const JP_FULL_OPEN_CHARACTERS = "あかさたなはやらわがざだおこそとのほもよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ";
+// Japanese Viseme Maps
+const JP_VISEME_0_CLOSED = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんンまみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポ";
+const JP_VISEME_2_OPEN   = "あかさたなはらわがざだおこそとのほよろごぞどぼぽアサタナハヤラワガザダオコソトノホモヨロゴゾドボポぁゃャ";
+// Everything else defaults to Viseme 1 (Half-Open)
 
-// English Sets
-const EN_STOP_CHARACTERS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
-const EN_BILABIAL_CHARACTERS = "mpb";
-const EN_FULL_OPEN_CHARACTERS = "aowu";
+// English Viseme Maps
+const EN_VISEME_0_CLOSED = " .,!?;:()[]_-\n\t'\"`‘’“”–—…mpb";
+const EN_VISEME_2_OPEN   = "aowu";
+// Everything else defaults to Viseme 1 (Half-Open)
 
-const getMouthFrame = (char: string, language: 'en' | 'jp'): number => {
+const getProfessionalVisemeFrame = (char: string, language: 'en' | 'jp'): number => {
   if (!char) return 0;
   const c = char.toLowerCase();
 
   if (language === 'jp') {
-    if (JP_STOP_CHARACTERS.includes(c)) return 0;
-    if (JP_BILABIAL_CHARACTERS.includes(c)) return 0;
-    if (JP_FULL_OPEN_CHARACTERS.includes(c)) return 2;
+    if (JP_VISEME_0_CLOSED.includes(c)) return 0;
+    if (JP_VISEME_2_OPEN.includes(c)) return 2;
     return 1;
   } else {
-    if (EN_STOP_CHARACTERS.includes(c)) return 0;
-    if (EN_BILABIAL_CHARACTERS.includes(c)) return 0;
-    if (EN_FULL_OPEN_CHARACTERS.includes(c)) return 2;
+    if (EN_VISEME_0_CLOSED.includes(c)) return 0;
+    if (EN_VISEME_2_OPEN.includes(c)) return 2;
     return 1;
   }
 };
+
+const normalizeTag = (raw: string): string =>
+  raw.toLowerCase().replace(/[\[\]]/g, '').replace(/\d+$/, '').trim();
 
 interface Chunk { tag: string; text: string; }
 
@@ -97,9 +93,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [frameIndex, setFrameIndex] = useState(0);
   const [isBlinking, setIsBlinking] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.png');
-  const lastMouthUpdate = useRef<number>(0);
-  const hasPlayedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const hasPlayedIncomingRef = useRef(false);
 
   // Aggressive Pre-loading to eliminate initial lag
   useEffect(() => {
@@ -140,31 +135,36 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
   useEffect(() => {
-    if (isLoading) { hasPlayedRef.current = false; return; }
-    if (!hasPlayedRef.current && lastAmadeusMessage.length > 0) {
-      playSound('incoming'); hasPlayedRef.current = true;
+    if (isLoading) { hasPlayedIncomingRef.current = false; return; }
+    if (!hasPlayedIncomingRef.current && lastAmadeusMessage.length > 0) {
+      playSound('incoming'); hasPlayedIncomingRef.current = true;
     }
   }, [lastAmadeusMessage, isLoading, playSound]);
 
-  // Unified Sync Node
-  const { displayedText, activeChunk, isComplete } = useMemo(() => {
+  // Unified Sync Calculation
+  const { displayedText, activeChunk, charIndex } = useMemo(() => {
     if (isLoading || !fullCleanText || duration === 0) {
-      return { displayedText: '', activeChunk: { tag: 'normal', text: '' }, isComplete: false };
+      return { displayedText: '', activeChunk: chunks[0] || { tag: 'normal', text: '' }, charIndex: -1 };
     }
     const progress = Math.min(currentTime / duration, 1);
-    const charCount = Math.floor(progress * fullCleanText.length);
-    const textSoFar = fullCleanText.slice(0, charCount);
+    const index = Math.floor(progress * fullCleanText.length);
+    const charSafe = Math.min(index, fullCleanText.length - 1);
     
     let currentLen = 0;
     let selectedChunk = chunks[0] || { tag: 'normal', text: '' };
     for (const chunk of chunks) {
       currentLen += chunk.text.length + 1;
-      if (charCount < currentLen) {
+      if (charSafe < currentLen) {
         selectedChunk = chunk;
         break;
       }
     }
-    return { displayedText: textSoFar, activeChunk: selectedChunk, isComplete: progress >= 0.995 };
+
+    return { 
+      displayedText: fullCleanText.slice(0, index), 
+      activeChunk: selectedChunk,
+      charIndex: charSafe
+    };
   }, [fullCleanText, currentTime, duration, isLoading, chunks]);
 
   useEffect(() => {
@@ -184,44 +184,26 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const isProfileView = useMemo(() => {
     const tag = normalizeTag(activeChunk.tag);
-    if (tag === 'side') return false; // Head front side orientation
+    if (tag === 'side') return false; 
     return avatarState.includes('sided_') || ['thinking', 'worried', 'surprised', 'pleasant'].includes(avatarState);
   }, [avatarState, activeChunk.tag]);
 
-  // Animation Loop - 100% Locked to Audio Progress
+  // ANIMATION LOOP - Driven by charIndex (Viseme Engine)
   useEffect(() => {
-    const now = Date.now();
-    const frameInterval = language === 'jp' ? 16 : 41; // 60fps for high-speed JP; 24fps for cinematic EN
-    
-    if (now - lastMouthUpdate.current < frameInterval) return;
-    
-    if (!isTtsSpeaking || isLoading || isComplete) {
+    if (!isTtsSpeaking || isLoading || charIndex === -1) {
       setFrameIndex(0); return;
     }
 
-    const progress = Math.min(currentTime / duration, 1);
-    const charIndex = Math.floor(progress * fullCleanText.length);
-    const charSafe = Math.min(charIndex, fullCleanText.length - 1);
+    const currentChar = fullCleanText[charIndex];
+    const targetFrame = getProfessionalVisemeFrame(currentChar, language);
     
-    const currentChar = fullCleanText[charSafe] || ' ';
-    const nextChar = fullCleanText[charSafe + 1] || ' ';
-    
-    const frames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
-    
-    // Primary Sampling
-    let targetFrame = getMouthFrame(currentChar, language);
-    
-    // "Look-Ahead Protocol" - Anticipatory Closure (Stage 1/2)
-    const currentStopSet = language === 'jp' ? JP_STOP_CHARACTERS : EN_STOP_CHARACTERS;
-    const currentBilabialSet = language === 'jp' ? JP_BILABIAL_CHARACTERS : EN_BILABIAL_CHARACTERS;
-
-    if (targetFrame > 0 && (currentStopSet.includes(nextChar) || currentBilabialSet.includes(nextChar.toLowerCase()))) {
-      targetFrame = 0; // Force Image 1 (Closed) slightly early to match audio decay
+    // Antialiasing: If audio is near completion or current char is trailing punctuation, force closure
+    if (currentTime >= duration - 0.05) {
+      setFrameIndex(0);
+    } else {
+      setFrameIndex(targetFrame);
     }
-
-    setFrameIndex(Math.min(targetFrame, frames.length - 1));
-    lastMouthUpdate.current = now;
-  }, [isTtsSpeaking, avatarState, isLoading, fullCleanText, language, currentTime, duration, isComplete]);
+  }, [charIndex, fullCleanText, language, isTtsSpeaking, isLoading, currentTime, duration]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
   const currentImage = currentFrames[frameIndex % currentFrames.length];
@@ -262,13 +244,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       <img src="/images/background.jpeg" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
       <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
 
-      {/* Force-render all frames to pre-cache and pre-decode them to eliminate lag */}
+      {/* ZERO-LAG PRE-RENDER CONTAINER */}
       <div className="hidden pointer-events-none opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true">
         {Object.values(kurisuExpressions).flat().map((frame, i) => (
-          <img key={i} src={frame} alt="" className="w-1 h-1" />
+          <img key={i} src={frame} alt="" className="w-1 h-1" loading="eager" decoding="sync" />
         ))}
-        <img src="/images/kurisu_blink.png" alt="" className="w-1 h-1" />
-        <img src="/images/kurisu_side_blink.png" alt="" className="w-1 h-1" />
+        <img src="/images/kurisu_blink.png" alt="" className="w-1 h-1" loading="eager" decoding="sync" />
+        <img src="/images/kurisu_side_blink.png" alt="" className="w-1 h-1" loading="eager" decoding="sync" />
       </div>
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
@@ -290,7 +272,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
               <img 
                 src={blinkAsset} 
                 alt="Blink" 
-                className="absolute bottom-0 h-[95%] w-auto object-contain transform-gpu will-change-transform"
+                className="absolute bottom-0 h-[95%] w-auto object-contain transform-gpu"
               />
             )}
           </div>
@@ -318,7 +300,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                       {paragraphs.map((para, idx) => (
                         <p key={idx} className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
                           {para}
-                          {idx === paragraphs.length - 1 && isTtsSpeaking && !isComplete && (
+                          {idx === paragraphs.length - 1 && isTtsSpeaking && currentTime < duration && (
                             <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
                           )}
                         </p>
@@ -329,7 +311,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                           <p className="text-amber-200/80 text-sm italic leading-relaxed">{translation}</p>
                         </div>
                       )}
-                      {!isLoading && isComplete && language === 'jp' && !translation && (
+                      {!isLoading && currentTime >= duration && language === 'jp' && !translation && (
                         <button onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit">
                           Translate to English
                         </button>
