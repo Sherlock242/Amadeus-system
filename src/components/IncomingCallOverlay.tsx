@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -39,7 +40,7 @@ const IncomingCallOverlay: React.FC<IncomingCallOverlayProps> = ({
       <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-12 font-orbitron overflow-hidden">
         <div className="relative z-10 flex flex-col items-center gap-8 text-center">
           <div className="relative w-40 h-40">
-            <img src="/images/kurisu_normal1.png" alt="Kurisu" className="w-full h-full rounded-full object-cover border-2 border-slate-600 opacity-50" style={{ filter: 'grayscale(70%)' }} />
+            <img src="/images/kurisu_normal1.webp" alt="Kurisu" className="w-full h-full rounded-full object-cover border-2 border-slate-600 opacity-50" style={{ filter: 'grayscale(70%)' }} />
           </div>
           <div className="space-y-3">
             <div className="text-slate-500 text-[10px] tracking-[0.5em] uppercase">AMADEUS // CONNECTION REFUSED</div>
@@ -65,7 +66,7 @@ const IncomingCallOverlay: React.FC<IncomingCallOverlayProps> = ({
       </div>
 
       <div className="relative z-10 w-48 h-48 sm:w-64 sm:h-64 flex items-center justify-center">
-        <img src="/images/kurisu_normal1.png" alt="Kurisu" className="w-32 h-32 sm:w-48 sm:h-48 rounded-full object-cover z-20" style={{ border: `4px solid ${colors.primary}`, boxShadow: `0 0 40px ${colors.glow}` }} />
+        <img src="/images/kurisu_normal1.webp" alt="Kurisu" className="w-32 h-32 sm:w-48 sm:h-48 rounded-full object-cover z-20" style={{ border: `4px solid ${colors.primary}`, boxShadow: `0 0 40px ${colors.glow}` }} />
       </div>
 
       <div className="relative z-10 w-full max-w-md flex justify-around mb-12">

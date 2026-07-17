@@ -30,7 +30,7 @@ interface AvatarViewProps {
 }
 
 /**
- * ENGINE: ENGLISH PHONETIC MAPPING
+ * ENGINE: ENGLISH PHONETIC MAPPING (24 FPS)
  */
 const processEnglishPhonetics = (char: string): number => {
   if (!char) return 0;
@@ -44,7 +44,7 @@ const processEnglishPhonetics = (char: string): number => {
 };
 
 /**
- * ENGINE: JAPANESE PHONETIC MAPPING
+ * ENGINE: JAPANESE PHONETIC MAPPING (64 FPS)
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
@@ -182,29 +182,24 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // PERSPECTIVE & VISUAL STATE ENGINE
+  // PERSPECTIVE ENGINE
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     
     const tag = normalizeTag(activeChunk.tag);
     const baseTag = kurisuExpressions[tag] ? tag : 'normal';
     
-    // Determine if base state is a side profile
-    // Exception: 'side' tag uses front-facing assets
     const isProfile = baseTag !== 'side' && 
       ['sided', 'thinking', 'surprised', 'pleasant', 'talking'].some(kw => baseTag.includes(kw));
 
-    // Case: Thinking (Loading)
     if (isLoading) {
       return 'kurisu_sided_thinking';
     }
     
-    // Case: Talking (Side profile override)
     if (quantizedTime > 0 && isProfile) {
       return 'kurisu_sided_talking';
     }
 
-    // Default: Use mapped tag
     return baseTag;
   }, [activeChunk.tag, isGlitching, isLoading, quantizedTime]);
 

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 
 interface KurisuProfilePanelProps {
@@ -78,7 +79,7 @@ const KurisuProfilePanel: React.FC<KurisuProfilePanelProps> = ({ onClose }) => {
       <div 
         className="relative rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden amadeus-glow animate-pulse-glow-border border border-amber-500/30"
         style={{
-          backgroundImage: `url(/images/kurisu_normal1.png)`,
+          backgroundImage: `url(/images/kurisu_normal1.webp)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center 20%',
         }}

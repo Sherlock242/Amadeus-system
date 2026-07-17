@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -70,7 +71,7 @@ const AmadeusAvatar: React.FC<{
 
         <div className="relative flex justify-center items-center my-8 h-48">
           <img
-            src="/images/kurisu_normal1.png"
+            src="/images/kurisu_normal1.webp"
             alt="Makise Kurisu's Memory"
             className="absolute w-36 h-36 rounded-full object-cover opacity-80 shadow-[0_0_30px_rgba(245,158,11,0.5)] pointer-events-none animate-sway"
             style={{ animationDuration: '8s' }}
