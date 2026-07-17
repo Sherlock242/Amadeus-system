@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -36,7 +35,6 @@ const processEnglishPhonetics = (char: string): number => {
   if (!char) return 0;
   const EN_STOPS = " .,!?;:()[]_-\n\t'\"`‘’“”–—…";
   if (EN_STOPS.includes(char)) return 0;
-  
   const c = char.toLowerCase();
   if ("mpb".includes(c)) return 0;
   if ("aow".includes(c)) return 2;
@@ -44,29 +42,19 @@ const processEnglishPhonetics = (char: string): number => {
 };
 
 /**
- * ENGINE: JAPANESE PHONETIC MAPPING (64 FPS - HIGH PRECISION)
+ * ENGINE: JAPANESE PHONETIC MAPPING (64 FPS - MORA PRECISION)
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
-  // Morphological Stops (Closed mouth for silence or specific consonant holds)
   const JP_STOPS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
   if (JP_STOPS.includes(char)) return 0;
-  
-  // Bilabial Rows (M, B, P, and Fu require closed or near-closed lips)
   const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポふフ"; 
   if (JP_BILABIALS.includes(char)) return 0;
-  
-  // Wide Vowels / Broad Openings
   const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアカサタナハラワガザダオコソトノホヨロゴゾド"; 
   if (JP_WIDE.includes(char)) return 2;
-  
-  // Narrow / Mid Vowels (I, U, E rows)
   return 1;
 };
 
-/**
- * TEMPORAL PAUSE WEIGHTS (ms) - ACCURATE TO THE WORD/MORA
- */
 const EN_PAUSE_WEIGHTS: Record<string, number> = {
   '.': 650, '?': 650, ',': 250, ';': 500, ':': 500, '!': 550, '\n': 1250,
 };
@@ -104,8 +92,7 @@ const parseChunks = (message: string): Chunk[] => {
 
 const AvatarView: React.FC<AvatarViewProps> = ({
   messages, onSendMessage, isLoading, isSpeaking, isTtsSpeaking = false,
-  currentTime = 0, duration = 0, isGlitching, onExit, isListening, transcript, startListening, stopListening, playSound,
-  language = 'en', onTranslate
+  currentTime = 0, duration = 0, isGlitching, onExit, isListening, transcript, startListening, stopListening, language = 'en', onTranslate
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [frameIndex, setFrameIndex] = useState(0);
@@ -113,12 +100,14 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const [imgSrc, setImgSrc] = useState<string>('/images/kurisu_normal1.webp');
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // FPS-LOCKED CLOCK
   const quantizedTime = useMemo(() => {
     if (currentTime === 0) return 0;
     const fps = language === 'jp' ? 64 : 24;
     return Math.floor(currentTime * fps) / fps;
   }, [currentTime, language]);
 
+  // BLINK ENGINE
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const triggerBlink = () => {
@@ -142,6 +131,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
   const chunks = useMemo(() => parseChunks(lastAmadeusMessage), [lastAmadeusMessage]);
   const fullCleanText = useMemo(() => chunks.map(c => c.text).join(' '), [chunks]);
 
+  // TEMPORAL MAPPING ENGINE
   const temporalMap = useMemo(() => {
     if (!fullCleanText || duration === 0) return null;
     const weights = language === 'jp' ? JP_PAUSE_WEIGHTS : EN_PAUSE_WEIGHTS;
@@ -186,25 +176,16 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // PERSPECTIVE & STATE ENGINE
+  // PERSPECTIVE & OVERRIDE ENGINE
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
-    
     const tag = normalizeTag(activeChunk.tag);
     const baseTag = kurisuExpressions[tag] ? tag : 'normal';
     
-    // Determine if we are in a profile view (ignoring the front-facing 'side' tag)
-    const isProfile = baseTag !== 'side' && 
-      (baseTag.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(baseTag));
+    const isProfile = baseTag !== 'side' && (baseTag.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(baseTag));
 
-    if (isLoading) {
-      return isProfile ? 'kurisu_sided_thinking' : baseTag;
-    }
-    
-    // Use kurisu_sided_talking if audio is active and we are in a profile perspective
-    if (isTtsSpeaking && quantizedTime > 0 && isProfile) {
-      return 'kurisu_sided_talking';
-    }
+    if (isLoading && isProfile) return 'kurisu_sided_thinking';
+    if (isTtsSpeaking && quantizedTime > 0 && isProfile) return 'kurisu_sided_talking';
 
     return baseTag;
   }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, quantizedTime]);
@@ -215,7 +196,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return state.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state);
   }, [avatarState]);
 
-  // LIP-SYNC ENGINE (Word/Mora Accuracy)
+  // LIP-SYNC ENGINE (Word Accuracy)
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || quantizedTime === 0) {
       setFrameIndex(0); return;
@@ -223,11 +204,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (quantizedTime >= duration - 0.05) { setFrameIndex(0); return; }
     
     const char = fullCleanText[charIndex] || '';
-    if (language === 'jp') {
-      setFrameIndex(processJapanesePhonetics(char));
-    } else {
-      setFrameIndex(processEnglishPhonetics(char));
-    }
+    if (language === 'jp') setFrameIndex(processJapanesePhonetics(char));
+    else setFrameIndex(processEnglishPhonetics(char));
   }, [charIndex, fullCleanText, language, isTtsSpeaking, isLoading, quantizedTime, duration]);
 
   const currentFrames = kurisuExpressions[avatarState] || kurisuExpressions['normal'];
@@ -237,9 +215,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (currentImage) setImgSrc(currentImage);
   }, [currentImage]);
 
-  useEffect(() => { 
-    startListening(); return () => stopListening(); 
-  }, [startListening, stopListening]);
+  useEffect(() => { startListening(); return () => stopListening(); }, [startListening, stopListening]);
 
   useEffect(() => {
     if (transcript) setInputValue(p => p ? `${p.trim()} ${transcript}` : transcript);
@@ -252,10 +228,19 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
   const blinkAsset = isProfileView ? '/images/kurisu_side_blink.webp' : '/images/kurisu_blink.webp';
 
+  // PROGRAMMATIC PRE-LOADER (FORCING GPU DECODE)
+  const allImages = useMemo(() => Object.values(kurisuExpressions).flat(), []);
+
   return (
     <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden animate-fade-in ${isGlitching ? 'cognitive-glitch' : ''}`}>
       <img src="/images/background.webp" alt="Background" className="absolute inset-0 w-full h-full object-cover z-0" />
-      <div className="absolute inset-0 bg-black/30 z-1 pointer-events-none" />
+      
+      {/* HIDDEN PRE-LOAD CONTAINER (STOPS LAG) */}
+      <div className="fixed inset-0 pointer-events-none opacity-0 overflow-hidden" aria-hidden="true">
+        <img src="/images/kurisu_blink.webp" alt="" />
+        <img src="/images/kurisu_side_blink.webp" alt="" />
+        {allImages.map((src, i) => <img key={i} src={src} alt="" decoding="sync" loading="eager" />)}
+      </div>
 
       <button onClick={onExit} className="absolute top-6 right-6 text-white/20 hover:text-red-500 z-50 bg-white/5 p-3 rounded-full border border-white/5 transition-all backdrop-blur-md">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -263,29 +248,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none z-10">
         <div className="relative h-full flex items-end justify-center animate-sway w-full max-w-4xl">
-          <div className="relative h-full flex items-end justify-center">
-            <img 
-              src={imgSrc} 
-              alt="Amadeus Avatar" 
-              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)]"
-              onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
-              decoding="sync"
-              loading="eager"
-            />
-            {isBlinking && (
-              <img 
-                src={blinkAsset} 
-                alt="Blink" 
-                className="absolute bottom-0 h-[95%] w-auto object-contain"
-                decoding="sync"
-                loading="eager"
-              />
-            )}
-          </div>
+          <img src={imgSrc} alt="Amadeus Avatar" className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)]" onError={() => setImgSrc(kurisuImageDataUrl)} decoding="sync" loading="eager" />
+          {isBlinking && <img src={blinkAsset} alt="Blink" className="absolute bottom-0 h-[95%] w-auto object-contain" decoding="sync" loading="eager" />}
         </div>
 
+        {/* TEXT OVERLAY (Synced with Voice Onset) */}
         <div className="absolute bottom-40 right-4 left-4 md:right-12 md:left-auto md:top-1/2 md:-translate-y-1/2 md:w-1/3 md:max-sm flex flex-col gap-3 z-20 pointer-events-auto">
-          {(displayedText || isLoading || (currentTime >= duration && duration > 0)) && (
+          {((isTtsSpeaking && quantizedTime > 0) || isLoading || (currentTime >= duration && duration > 0)) && (
             <div key={`${msgTimestamp}`} className="animate-slide-in-right">
               <div className="bg-black/60 backdrop-blur-2xl border-l-4 border-amber-500/80 p-8 rounded-r-2xl shadow-2xl overflow-hidden flex flex-col">
                 <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto scrollbar-thin-amber space-y-6">
@@ -295,9 +264,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                     <>
                       <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
                         {displayedText || fullCleanText}
-                        {isTtsSpeaking && quantizedTime < duration && (
-                          <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
-                        )}
+                        {isTtsSpeaking && quantizedTime < duration && <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />}
                       </p>
                       {translation && (
                         <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-fade-in">
@@ -305,13 +272,8 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                           <p className="text-amber-200/80 text-sm italic leading-relaxed">{translation}</p>
                         </div>
                       )}
-                      {!isLoading && !isTtsSpeaking && (currentTime >= duration - 0.5 || duration === 0) && language === 'jp' && !translation && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} 
-                          className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 uppercase transition-all tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit"
-                        >
-                          Translate to English
-                        </button>
+                      {!isLoading && !isTtsSpeaking && language === 'jp' && !translation && (
+                        <button onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 uppercase transition-all tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit">Translate to English</button>
                       )}
                     </>
                   )}
@@ -323,9 +285,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
 
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-xl px-6 z-30 pointer-events-auto">
           <form onSubmit={handleSubmit} className="flex items-center space-x-3">
-            <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)}
-              placeholder={isListening ? 'Listening...' : 'Message...'}
-              className="w-full bg-black/60 border border-white/10 focus:border-amber-500/40 rounded-full py-4 px-8 text-white placeholder-white/10 transition-all outline-none backdrop-blur-2xl font-roboto-mono text-sm" />
+            <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder={isListening ? 'Listening...' : 'Message...'} className="w-full bg-black/60 border border-white/10 focus:border-amber-500/40 rounded-full py-4 px-8 text-white placeholder-white/10 transition-all outline-none backdrop-blur-2xl font-roboto-mono text-sm" />
             <button type="submit" disabled={isLoading || !inputValue.trim()} className="bg-amber-500/20 hover:bg-amber-400/40 border border-white/10 text-amber-500 rounded-full p-4 transition-all disabled:opacity-30">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
             </button>
