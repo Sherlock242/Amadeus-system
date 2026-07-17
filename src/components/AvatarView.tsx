@@ -182,20 +182,22 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayedText, isLoading]);
 
-  // PERSPECTIVE ENGINE
+  // PERSPECTIVE & STATE ENGINE
   const avatarState = useMemo(() => {
     if (isGlitching) return 'glitching';
     
     const tag = normalizeTag(activeChunk.tag);
     const baseTag = kurisuExpressions[tag] ? tag : 'normal';
     
+    // Check if current expression is a profile view
     const isProfile = baseTag !== 'side' && 
       ['sided', 'thinking', 'surprised', 'pleasant', 'talking'].some(kw => baseTag.includes(kw));
 
     if (isLoading) {
-      return 'kurisu_sided_thinking';
+      return isProfile ? 'kurisu_sided_thinking' : baseTag;
     }
     
+    // Override with side-talking if audio is active in profile view
     if (quantizedTime > 0 && isProfile) {
       return 'kurisu_sided_talking';
     }
@@ -257,12 +259,12 @@ const AvatarView: React.FC<AvatarViewProps> = ({
       </button>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center pointer-events-none z-10">
-        <div className="relative h-full flex items-end justify-center animate-sway transform-gpu w-full max-w-4xl will-change-transform">
-          <div className="relative h-full flex items-end justify-center transform-gpu">
+        <div className="relative h-full flex items-end justify-center animate-sway w-full max-w-4xl">
+          <div className="relative h-full flex items-end justify-center">
             <img 
               src={imgSrc} 
               alt="Amadeus Avatar" 
-              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)] transform-gpu"
+              className="h-[95%] w-auto object-contain drop-shadow-[0_0_80px_rgba(0,0,0,0.9)]"
               onError={() => { if (imgSrc !== kurisuImageDataUrl) setImgSrc(kurisuImageDataUrl); }}
               decoding="sync"
               loading="eager"
@@ -271,7 +273,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
               <img 
                 src={blinkAsset} 
                 alt="Blink" 
-                className="absolute bottom-0 h-[95%] w-auto object-contain transform-gpu"
+                className="absolute bottom-0 h-[95%] w-auto object-contain"
                 decoding="sync"
                 loading="eager"
               />
