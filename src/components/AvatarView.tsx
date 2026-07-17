@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -263,7 +264,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                   ) : (
                     <>
                       <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
-                        {displayedText || fullCleanText}
+                        {isTtsSpeaking ? displayedText : fullCleanText}
                         {isTtsSpeaking && quantizedTime < duration && <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />}
                       </p>
                       {translation && (
