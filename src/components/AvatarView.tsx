@@ -189,27 +189,26 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     const tag = normalizeTag(activeChunk.tag);
     const baseTag = kurisuExpressions[tag] ? tag : 'normal';
     
-    // Check if current expression is a profile view
+    // Determine if we are in a profile view (ignoring the front-facing 'side' tag)
     const isProfile = baseTag !== 'side' && 
-      ['sided', 'thinking', 'surprised', 'pleasant', 'talking'].some(kw => baseTag.includes(kw));
+      (baseTag.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(baseTag));
 
     if (isLoading) {
       return isProfile ? 'kurisu_sided_thinking' : baseTag;
     }
     
-    // Override with side-talking if audio is active in profile view
-    if (quantizedTime > 0 && isProfile) {
+    // Use kurisu_sided_talking if audio is active and we are in a profile perspective
+    if (isTtsSpeaking && quantizedTime > 0 && isProfile) {
       return 'kurisu_sided_talking';
     }
 
     return baseTag;
-  }, [activeChunk.tag, isGlitching, isLoading, quantizedTime]);
+  }, [activeChunk.tag, isGlitching, isLoading, isTtsSpeaking, quantizedTime]);
 
   const isProfileView = useMemo(() => {
     const state = avatarState.toLowerCase();
     if (state === 'side') return false; 
-    const profileKeywords = ['sided', 'thinking', 'surprised', 'pleasant', 'talking'];
-    return profileKeywords.some(kw => state.includes(kw));
+    return state.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state);
   }, [avatarState]);
 
   // LIP-SYNC ENGINE
@@ -282,7 +281,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
         </div>
 
         <div className="absolute bottom-40 right-4 left-4 md:right-12 md:left-auto md:top-1/2 md:-translate-y-1/2 md:w-1/3 md:max-sm flex flex-col gap-3 z-20 pointer-events-auto">
-          {(displayedText || isLoading) && (
+          {(displayedText || isLoading || (currentTime >= duration && duration > 0)) && (
             <div key={`${msgTimestamp}`} className="animate-slide-in-right">
               <div className="bg-black/60 backdrop-blur-2xl border-l-4 border-amber-500/80 p-8 rounded-r-2xl shadow-2xl overflow-hidden flex flex-col">
                 <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto scrollbar-thin-amber space-y-6">
@@ -291,7 +290,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                   ) : (
                     <>
                       <p className="text-xl lg:text-2xl text-amber-50 font-sans leading-relaxed tracking-wide italic">
-                        {displayedText}
+                        {displayedText || fullCleanText}
                         {isTtsSpeaking && quantizedTime < duration && (
                           <span className="inline-block w-1.5 h-6 bg-amber-500 ml-1 animate-pulse align-middle" />
                         )}
@@ -302,8 +301,13 @@ const AvatarView: React.FC<AvatarViewProps> = ({
                           <p className="text-amber-200/80 text-sm italic leading-relaxed">{translation}</p>
                         </div>
                       )}
-                      {!isLoading && quantizedTime >= duration && language === 'jp' && !translation && (
-                        <button onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 uppercase transition-all tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit">Translate to English</button>
+                      {!isLoading && !isTtsSpeaking && (currentTime >= duration - 0.5 || duration === 0) && language === 'jp' && !translation && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onTranslate?.(); }} 
+                          className="mt-2 text-[9px] font-bold text-cyan-400 hover:text-cyan-300 uppercase transition-all tracking-widest border border-cyan-400/30 px-2 py-1 rounded bg-cyan-400/10 w-fit"
+                        >
+                          Translate to English
+                        </button>
                       )}
                     </>
                   )}
