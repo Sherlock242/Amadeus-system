@@ -44,24 +44,28 @@ const processEnglishPhonetics = (char: string): number => {
 };
 
 /**
- * ENGINE: JAPANESE PHONETIC MAPPING (64 FPS)
+ * ENGINE: JAPANESE PHONETIC MAPPING (64 FPS - HIGH PRECISION)
  */
 const processJapanesePhonetics = (char: string): number => {
   if (!char) return 0;
+  // Morphological Stops (Closed mouth for silence or specific consonant holds)
   const JP_STOPS = " .,!?;:()[]_-\n\t'\"「」。、！？…・（）『』【】っッんン";
   if (JP_STOPS.includes(char)) return 0;
   
-  const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミＭメモバビブベボパピプペポ"; 
+  // Bilabial Rows (M, B, P, and Fu require closed or near-closed lips)
+  const JP_BILABIALS = "まみむめもばびぶべぼぱぴぷぺぽマミムメモバビブベボパピプペポふフ"; 
   if (JP_BILABIALS.includes(char)) return 0;
   
-  const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアサタナハヤラワガザダオコソトノホモヨロゴゾド"; 
+  // Wide Vowels / Broad Openings
+  const JP_WIDE = "あかさたなはらわがざだおこそとのほよろごぞどアカサタナハラワガザダオコソトノホヨロゴゾド"; 
   if (JP_WIDE.includes(char)) return 2;
   
+  // Narrow / Mid Vowels (I, U, E rows)
   return 1;
 };
 
 /**
- * TEMPORAL PAUSE WEIGHTS (ms)
+ * TEMPORAL PAUSE WEIGHTS (ms) - ACCURATE TO THE WORD/MORA
  */
 const EN_PAUSE_WEIGHTS: Record<string, number> = {
   '.': 650, '?': 650, ',': 250, ';': 500, ':': 500, '!': 550, '\n': 1250,
@@ -69,7 +73,7 @@ const EN_PAUSE_WEIGHTS: Record<string, number> = {
 const EN_CHAR_WEIGHT = 65;
 
 const JP_PAUSE_WEIGHTS: Record<string, number> = {
-  '。': 560, '、': 225, '「': 260, '」': 260, '・': 95, '！': 410, '？': 560, '…': 600, '\n': 1000,
+  '。': 560, '？': 560, '、': 225, '「': 260, '」': 260, '・': 95, '！': 410, '…': 600, '\n': 1000,
 };
 const JP_CHAR_WEIGHT = 70;
 
@@ -211,7 +215,7 @@ const AvatarView: React.FC<AvatarViewProps> = ({
     return state.includes('sided') || ['thinking', 'surprised', 'pleasant', 'talking'].includes(state);
   }, [avatarState]);
 
-  // LIP-SYNC ENGINE
+  // LIP-SYNC ENGINE (Word/Mora Accuracy)
   useEffect(() => {
     if (!isTtsSpeaking || isLoading || charIndex === -1 || quantizedTime === 0) {
       setFrameIndex(0); return;
