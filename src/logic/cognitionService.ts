@@ -39,7 +39,7 @@ import {
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const GROQ_MAIN_MODEL = 'llama-3.3-70b-versatile';
+const GROQ_MAIN_MODEL = 'openai/gpt-oss-120b';
 
 // MULTI-MODEL FALLBACK CHAIN
 const OPENROUTER_MODELS = [
